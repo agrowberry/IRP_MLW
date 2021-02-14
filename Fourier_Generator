@@ -1,96 +1,90 @@
-import sympy as smp
+import scipy as sp
 import numpy as np
 import plotly.graph_objects as go
 import pandas as pd
-from symfit import parameters, variables, sin, cos, Fit
-
-N = 20
-
-x = np.full(int(N / 2), 5)
-x = np.append(x, np.linspace(5, 0, int(N / 2)))
-
-y = np.linspace(0, 5, int(N / 2))
-y = np.append(y, np.full(int(N / 2), 5))
-
-a = 1
-
-Num_Turns = 10
-
-df = pd.DataFrame(x, columns=['x'], dtype='float')
-df['y'] = y
-df['x'] = x
-df['z'] = np.linspace(0, a, num=N)
-
-df['comp'] = df['x'] + df['y'] * 1j
-df['r'] = np.absolute(df['comp'])
-df['theta'] = np.angle(df['comp'])
-
-blank_df = df.copy()
-
-for i in range(Num_Turns * 4 - 1):
-    new_df = blank_df.copy()
-    new_df['z'] = new_df['z'] + (i + 1) * a
-    new_df['theta'] = new_df['theta'] + (i + 1) * np.pi / 2
-    df = df.append(new_df)
-
-df = df.reset_index(drop=True)
-
-df['x'] = df['r'] * np.cos(df['theta'])
-df['y'] = df['r'] * np.sin(df['theta'])
-
-df['z'] = df['z']
 
 
-def fourier_series(x, f, n=0):
-    """
-    Returns a symbolic fourier series of order `n`.
+class DataEntry(object):
+    def __init__(self):
+        self.std_inputs_dict = {'core_length': 0.0,
+                                'core_minor_axis': 0.0,
+                                'core_major_axis': 0.0,
+                                'num_of_turns': 0.0,
+                                'outer_minor_axis': 0.0,
+                                'outer_major_axis': 0.0
+                                }
 
-    :param n: Order of the fourier series.
-    :param x: Independent variable
-    :param f: Frequency of the fourier series
-    """
-    # Make the parameter objects for all the terms
-    a0, *cos_a = parameters(','.join(['a{}'.format(i) for i in range(0, n + 1)]))
-    sin_b = parameters(','.join(['b{}'.format(i) for i in range(1, n + 1)]))
-    # Construct the series
-    series = a0 + sum(ai * cos(i * f * x) + bi * sin(i * f * x)
-                      for i, (ai, bi) in enumerate(zip(cos_a, sin_b), start=1))
-    return series
+        self.yes_answer = ['y', 'Y', 'Yes', 'YES', 'yes']
+        self.no_answer = ['n', 'N', 'no', 'NO', 'No']
+
+    def input_data(self, input_dict=False):
+        if not input_dict:
+            input_dict = self.std_inputs_dict
+
+        for key in input_dict:
+            input_dict[key] = float(input('Input ' + str(key) + ': '))
+
+        return input_dict
+
+    def read_data(self, file):
+        with open(file) as f:
+            lines = f.readlines()
+            input_dict = {}
+            for line in lines:
+                input_dict[line[0]] = line[1]
+
+        return input_dict
+
+    def insert_model(self, file):
+        pass
 
 
-# build symbolic fourier series for 3 parametric fcns (x, y, z)
-# stored as model dictionaries
+class FourierManipulation(object):
+    def __init__(self):
+        self.fig = go.Figure()
+        self.geom_dict = {}
 
-x, y, z, t = variables('x, y, z, t')
-w_x, w_y, w_z, = parameters('w_x, w_y, w_z')
-x_model_dict = {x: fourier_series(t, f=w_x, n=64)}
-y_model_dict = {y: fourier_series(t, f=w_y, n=64)}
-z_model_dict = {z: fourier_series(t, f=w_z, n=64)}
+    def grad(self, vector_array, normalise=False):
+        """
+        returns either un-normalised or normalised gradient array of a n-dimension array.
+        :param vector_array: n-dimensional array of sequential points of
+        form [[x1, y1, z1, ...], [x2, y2, z2, ...], ...].
+        :param normalise: kwarg to return either a normalised or un-normalised array
+        :return: grad array: n-dimensional array of sequential gradients.
+        """
+        count = 1
+        grad_array = []
+        for i in vector_array:
+            if count == 1:
+                last_i = i
+                count += 1
+            else:
+                grad = i - last_i
+                grad_array.append(grad)
+                count += 1
+                last_i = i
+        grad_array = grad_array[0:1] + grad_array
+        grad_array = np.stack(grad_array)
+        if normalise:
+            norm_grad_list = []
+            for vector in grad_array:
+                norm_vector = vector / np.linalg.norm(vector)
+                norm_grad_list.append(norm_vector)
+            grad_array = np.stack(norm_grad_list)
 
-df['t_z'] = np.linspace(0, 0.1 * Num_Turns, df.shape[0])
-df['t_xy'] = np.linspace(0, 1000 * Num_Turns, df.shape[0])
+        return grad_array
 
-# fit the three parameterised fcns to existing square spiral data
-print('fitting x data...', end='\r')
-x_fit = Fit(x_model_dict, t=np.asarray(df['t_xy']), x=np.asarray(df['x']))
-x_fit_result = x_fit.execute()
-print(x_fit_result)
+    def make_coil(self, import_model=False):
+        """
+        :param: import_model, conditional for parsing either the input_dict or a CAD Model.
+        :return: array of points dictating
+        """
+        pass
 
-print('fitting y data...', end='\r')
-y_fit = Fit(y_model_dict, t=np.asarray(df['t_xy']), y=np.asarray(df['y']))
-y_fit_result = y_fit.execute()
-print(y_fit_result)
+    # returns array with fourier series coefficients.
+    def make_fourier_series(self, geometry_dict, plot_result=True):
+        val_list = []
+        for val in geometry_dict:
+            val_list.append(geometry_dict[val])
 
-print('fitting z data...', end='\r')
-z_fit = Fit(z_model_dict, t=np.asarray(df['t_z']), z=np.asarray(df['z']))
-z_fit_result = z_fit.execute()
-print(z_fit_result)
-
-df['x fit'] = x_fit.model(t=df['t_xy'], **x_fit_result.params).output[0]
-df['y fit'] = y_fit.model(t=df['t_xy'], **y_fit_result.params).output[0]
-df['z fit'] = z_fit.model(t=df['t_z'], **z_fit_result.params).output[0]
-
-fig = go.Figure()
-
-fig.add_trace(go.Scatter3d(x=df['x'], y=df['y'], z=df['z'], mode='lines'))
-fig.add_trace(go.Scatter3d(x=df['x fit'], y=df['y fit'], z=df['z fit'], mode='lines'))
+de = DataEntry()
