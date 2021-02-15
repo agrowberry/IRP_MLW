@@ -3,7 +3,7 @@ import numpy as np
 import sympy as sp
 
 
-# define main winding dimension - call the iterative path and slice building fcns.
+
 
 
 

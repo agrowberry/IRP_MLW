@@ -11,7 +11,8 @@ class DataEntry(object):
                                 'core_major_axis': 0.0,
                                 'num_of_turns': 0.0,
                                 'outer_minor_axis': 0.0,
-                                'outer_major_axis': 0.0
+                                'outer_major_axis': 0.0,
+                                'spacing': 0.0
                                 }
 
         self.yes_answer = ['y', 'Y', 'Yes', 'YES', 'yes']
@@ -44,9 +45,9 @@ class FourierManipulation(object):
         self.fig = go.Figure()
         self.geom_dict = {}
 
-    def grad(self, vector_array, normalise=False):
+    def grad(self, vector_array, normalise=True):
         """
-        returns either un-normalised or normalised gradient array of a n-dimension array.
+        returns either un-normalised or normalised gradient array of an n-dimension array.
         :param vector_array: n-dimensional array of sequential points of
         form [[x1, y1, z1, ...], [x2, y2, z2, ...], ...].
         :param normalise: kwarg to return either a normalised or un-normalised array
@@ -74,12 +75,14 @@ class FourierManipulation(object):
 
         return grad_array
 
-    def make_coil(self, import_model=False):
+    def make_coil(self, geom_dict, N):
         """
-        :param: import_model, conditional for parsing either the input_dict or a CAD Model.
-        :return: array of points dictating
+        :param: geom_dict, dictionary in std_input_dict format with geometry params.
+        :param: N, no. of points in returned array.
+        :return: array of points describing square coil around rectangular core.
         """
-        pass
+
+        geom_df = pd.Dataframe()
 
     # returns array with fourier series coefficients.
     def make_fourier_series(self, geometry_dict, plot_result=True):
@@ -87,4 +90,4 @@ class FourierManipulation(object):
         for val in geometry_dict:
             val_list.append(geometry_dict[val])
 
-de = DataEntry()
+
