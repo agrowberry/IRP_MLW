@@ -6,11 +6,11 @@ import pandas as pd
 
 class DataEntry(object):
     def __init__(self):
-        self.std_inputs_dict = {'core_length': 10.0,
+        self.std_inputs_dict = {'core_length': 20.0,
                                 'core_minor_axis': 10.0,
                                 'core_major_axis': 20.0,
                                 'num_of_turns': 10.0,
-                                'outer_spacing': 3.0,
+                                'outer_spacing': 5.0,
                                 'spacing': 0.5
                                 }
         self.yes_answer = ['y', 'Y', 'Yes', 'YES', 'yes']
@@ -141,6 +141,7 @@ class FourierManipulation(object):
         :param vector_array: n-dimensional array of sequential points of
         form [[x1, y1, z1, ...], [x2, y2, z2, ...], ...].
         :param normalise: kwarg to return either a normalised or un-normalised array
+        :param output: kwarg to return grad_array as object or to reassign self.grad_array.
         :return: grad array: n-dimensional array of sequential gradients.
         """
         count = 1
@@ -164,6 +165,12 @@ class FourierManipulation(object):
                 norm_grad_list.append(norm_vector)
             grad_array = np.stack(norm_grad_list)
 
+        # fig = go.Figure()
+        # fig.add_trace(go.Scatter(x=np.linspace(0, grad_array.shape[1]), y=grad_array[0]))
+        # fig.add_trace(go.Scatter(x=np.linspace(0, grad_array.shape[1]), y=grad_array[1]))
+        # fig.add_trace(go.Scatter(x=np.linspace(0, grad_array.shape[1]), y=grad_array[2]))
+        # fig.show()
+
         if output:
             return grad_array
         else:
@@ -183,19 +190,37 @@ class FourierManipulation(object):
             normal_vector = normal_array[i]
             unmapped_vector = unmapped_local_array[i]
             trans_vector = trans_array[i]
-            c = np.dot(origin_normal, normal_vector)
-            unnorm_axis = np.cross(origin_normal, normal_vector)
-            det_unnorm_axis = (unnorm_axis[0]**2 + unnorm_axis[1]**2 + unnorm_axis[2]**2)**0.5
-            axis = unnorm_axis * (1 / det_unnorm_axis)
-            s = np.sqrt(1 - c ** 2)
-            C = 1 - c
-            x = axis[0]
-            y = axis[1]
-            z = axis[2]
-            rot_matrix = np.array([[x*x*C+c, x*y*C-z*s, x*z*C+y*s],
-                                   [y*x*C+z*s, y*y*C+c, y*z*C-x*s],
-                                   [z*x*C-y*s, z*y*C+x*s, z*z*C+c]])
-            mapped_vector = np.dot(rot_matrix, unmapped_vector) + trans_vector
+            # c = np.dot(origin_normal, normal_vector)
+            # unnorm_axis = np.cross(origin_normal, normal_vector)
+            # det_unnorm_axis = (unnorm_axis[0]**2 + unnorm_axis[1]**2 + unnorm_axis[2]**2)**0.5
+            # axis = unnorm_axis * (1 / det_unnorm_axis)
+            # s = np.sqrt(1 - c ** 2)
+            # C = 1 - c
+            # x = axis[0]
+            # y = axis[1]
+            # z = axis[2]
+            # rot_matrix = np.array([[x*x*C+c, x*y*C-z*s, x*z*C+y*s],
+            #                        [y*x*C+z*s, y*y*C+c, y*z*C-x*s],
+            #                        [z*x*C-y*s, z*y*C+x*s, z*z*C+c]])
+            # mapped_vector = np.dot(rot_matrix, unmapped_vector) + trans_vector
+            e_angles = [0, 0, 0]
+            angle = lambda n, p: np.arccos((np.dot(n, p))/(np.linalg.norm(n)*np.linalg.norm(p)))
+            e_angles[0] = angle(np.array([origin_normal[1], origin_normal[2]]),
+                                np.array([normal_vector[1], normal_vector[2]]))
+            e_angles[1] = angle(np.array([origin_normal[0], origin_normal[2]]),
+                                np.array([normal_vector[0], normal_vector[2]]))
+            # e_angles[2] = angle(np.array([origin_normal[0], origin_normal[1]]),
+            #                     np.array([normal_vector[0], normal_vector[1]]))
+            rot_matrix = np.array([np.array([np.cos(e_angles[1])*np.cos(e_angles[2]),
+                                            -(np.cos(e_angles[1])*np.sin(e_angles[2])),
+                                            np.sin(e_angles[1])]),
+                                  np.array([np.cos(e_angles[2])*np.sin(e_angles[1])*np.sin(e_angles[0]) + np.cos(e_angles[0])*np.sin(e_angles[2]),
+                                            np.cos(e_angles[0])*np.cos(e_angles[2]) - np.sin(e_angles[1])*np.sin(e_angles[0])*np.sin(e_angles[2]),
+                                            -(np.cos(e_angles[1])*np.sin(e_angles[0]))]),
+                                  np.array([-(np.cos(e_angles[0])*np.cos(e_angles[2])*np.sin(e_angles[1])) + np.sin(e_angles[0])*np.sin(e_angles[2]),
+                                            np.cos(e_angles[2])*np.sin(e_angles[0]) + np.cos(e_angles[0])*np.sin(e_angles[1])*np.sin(e_angles[2]),
+                                            np.cos(e_angles[1])*np.cos(e_angles[0])])])
+            mapped_vector = np.copy(np.matmul(rot_matrix, unmapped_vector) + trans_vector)
             mapped_list.append(mapped_vector)
             print('mapping points ' + str(i) + ' of ' + str(unmapped_local_array.shape[0]), end='\r')
         if output:
@@ -222,14 +247,14 @@ class FourierManipulation(object):
 
         self.make_rectangle(major_width, major_height, major_length, int(round(N/num_turns)))
         self.make_helix(self.local_spiral, num_turns)
-        self.grad(self.main_spiral)
+        self.grad(np.transpose(self.main_spiral))
 
         points_per_coil_spiral = 20
         self.coil_sing_spiral = self.make_rectangle(coil_width, coil_height, 0, points_per_coil_spiral,
                                                     output=True, return_nd_array=True)
         self.coil_spiral = self.make_helix(self.coil_sing_spiral, int(round(N/points_per_coil_spiral)), output=True)
 
-        self.map_points(np.transpose(self.coil_spiral), np.transpose(self.grad_array), np.transpose(self.main_spiral))
+        self.map_points(np.transpose(self.coil_spiral), self.grad_array, np.transpose(self.main_spiral))
 
         if plot:
             self.fig.add_trace(go.Scatter3d(x=self.point_array[0], y=self.point_array[1], z=self.point_array[2],
@@ -238,14 +263,20 @@ class FourierManipulation(object):
             self.fig.add_trace(go.Scatter3d(x=self.coil_spiral[0], y=self.coil_spiral[1], z=self.coil_spiral[2]))
             self.fig.show()
 
-    # returns array with fourier series coefficients.
-    def make_fourier_series(self, geometry_dict, plot_result=True):
-        val_list = []
-        for val in geometry_dict:
-            val_list.append(geometry_dict[val])
-
 
 fg = FourierManipulation()
 
 fg.make_coil(50000, plot=True)
+
+
+
+
+
+
+
+
+
+
+
+
 
