@@ -6,4 +6,6 @@ This project provides several tools for programmatically designing, evaluating a
 ---
  ## Fourier Series Module (Fourier_Generator.py)
 
-Provides all of the tools for constructing basic coil winding geometries. With many 
+Provides a set of tools for constructing basic coil winding geometries. With further tools for parameterising the construction. 
+
+Also provides means for constructing the fourier transformed representation.

@@ -9,7 +9,7 @@ class DataEntry(object):
         self.std_inputs_dict = {'core_length': 20.0,
                                 'core_minor_axis': 10.0,
                                 'core_major_axis': 20.0,
-                                'num_of_turns': 10.0,
+                                'num_of_turns': 3.0,
                                 'outer_spacing': 5.0,
                                 'spacing': 0.5
                                 }
@@ -88,7 +88,7 @@ class FourierManipulation(object):
         x_list = []
         y_list = []
         perimeter = 2 * width + 2 * height
-        magnitude = lambda p1, p2: ((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)**0.5
+        magnitude = lambda p1, p2: ((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2) ** 0.5
         for i in range(1, len(corners)):
             corner = corners[i]
             last_corner = corners[i - 1]
@@ -190,6 +190,7 @@ class FourierManipulation(object):
             normal_vector = normal_array[i]
             unmapped_vector = unmapped_local_array[i]
             trans_vector = trans_array[i]
+
             # c = np.dot(origin_normal, normal_vector)
             # unnorm_axis = np.cross(origin_normal, normal_vector)
             # det_unnorm_axis = (unnorm_axis[0]**2 + unnorm_axis[1]**2 + unnorm_axis[2]**2)**0.5
@@ -203,23 +204,47 @@ class FourierManipulation(object):
             #                        [y*x*C+z*s, y*y*C+c, y*z*C-x*s],
             #                        [z*x*C-y*s, z*y*C+x*s, z*z*C+c]])
             # mapped_vector = np.dot(rot_matrix, unmapped_vector) + trans_vector
-            e_angles = [0, 0, 0]
-            angle = lambda n, p: np.arccos((np.dot(n, p))/(np.linalg.norm(n)*np.linalg.norm(p)))
-            e_angles[0] = angle(np.array([origin_normal[1], origin_normal[2]]),
+            # e_angles = [0, 0, 0]
+
+            def angle(n, p):
+                if n[0] == 0 and n[1] == 1:
+                    angle_rad = np.pi / 2
+                else:
+                    angle_rad = np.arccos((np.dot(n, p)) / (np.linalg.norm(n) * np.linalg.norm(p)))
+                return angle_rad
+
+            rot_angle_x = angle(np.array([origin_normal[1], origin_normal[2]]),
                                 np.array([normal_vector[1], normal_vector[2]]))
-            e_angles[1] = angle(np.array([origin_normal[0], origin_normal[2]]),
+            rot_angle_y = angle(np.array([origin_normal[0], origin_normal[2]]),
                                 np.array([normal_vector[0], normal_vector[2]]))
-            # e_angles[2] = angle(np.array([origin_normal[0], origin_normal[1]]),
-            #                     np.array([normal_vector[0], normal_vector[1]]))
-            rot_matrix = np.array([np.array([np.cos(e_angles[1])*np.cos(e_angles[2]),
-                                            -(np.cos(e_angles[1])*np.sin(e_angles[2])),
-                                            np.sin(e_angles[1])]),
-                                  np.array([np.cos(e_angles[2])*np.sin(e_angles[1])*np.sin(e_angles[0]) + np.cos(e_angles[0])*np.sin(e_angles[2]),
-                                            np.cos(e_angles[0])*np.cos(e_angles[2]) - np.sin(e_angles[1])*np.sin(e_angles[0])*np.sin(e_angles[2]),
-                                            -(np.cos(e_angles[1])*np.sin(e_angles[0]))]),
-                                  np.array([-(np.cos(e_angles[0])*np.cos(e_angles[2])*np.sin(e_angles[1])) + np.sin(e_angles[0])*np.sin(e_angles[2]),
-                                            np.cos(e_angles[2])*np.sin(e_angles[0]) + np.cos(e_angles[0])*np.sin(e_angles[1])*np.sin(e_angles[2]),
-                                            np.cos(e_angles[1])*np.cos(e_angles[0])])])
+            rot_angle_z = angle(np.array([1, 0]),
+                                np.array([normal_vector[2], normal_vector[0]]))
+            r_x = np.array([np.array([1, 0, 0]),
+                            np.array([0, np.cos(rot_angle_x), -np.sin(rot_angle_x)]),
+                            np.array([0, np.sin(rot_angle_x), np.cos(rot_angle_x)])])
+            r_y = np.array([np.array([np.cos(rot_angle_y), 0, np.sin(rot_angle_y)]),
+                            np.array([0, 1, 0]),
+                            np.array([-np.sin(rot_angle_y), 0, np.cos(rot_angle_y)])])
+            r_z = np.array([np.array([np.cos(rot_angle_z), -np.sin(rot_angle_z), 0]),
+                            np.array([np.sin(rot_angle_z), np.cos(rot_angle_z), 0]),
+                            np.array([0, 0, 1])])
+
+            rot_matrix = np.matmul(r_z, np.matmul(r_y, r_x))
+
+            # rot_matrix = np.array([np.array([np.cos(e__angles[2]),
+            #                                 -np.cos(e_angles[2])*np.sin(e_angles[2]),
+            #                                 np.sin(e_angles[1])]),
+            #                       np.array([np.cos(e_angles[2])*np.sin(e_angles[1])*np.sin(e_angles[0])
+            #                                     + np.sin(e_angles[2])*np.cos(e_angles[0]),
+            #                                 np.cos(e_angles[0])*np.cos(e_angles[2])
+            #                                     - np.sin(e_angles[0])*np.sin(e_angles[1])*np.sin(e_angles[2]),
+            #                                 -(np.cos(e_angles[1])*np.sin(e_angles[0]))]),
+            #                       np.array([-(np.cos(e_angles[2])*np.cos(e_angles[0])*np.sin(e_angles[1]))
+            #                                     + np.sin(e_angles[2])*np.sin(e_angles[0]),
+            #                                 np.cos(e_angles[2])*np.sin(e_angles[0])
+            #                                     + np.cos(e_angles[0])*np.sin(e_angles[1])*np.sin(e_angles[2]),
+            #                                 np.cos(e_angles[1])*np.cos(e_angles[0])])])
+
             mapped_vector = np.copy(np.matmul(rot_matrix, unmapped_vector) + trans_vector)
             mapped_list.append(mapped_vector)
             print('mapping points ' + str(i) + ' of ' + str(unmapped_local_array.shape[0]), end='\r')
@@ -239,20 +264,20 @@ class FourierManipulation(object):
             geom_dict = de_local.start_up()
 
         num_turns = int(geom_dict['num_of_turns'])
-        coil_height = (geom_dict['core_length'] - (num_turns - 1)*geom_dict['spacing'])/num_turns
-        coil_width = geom_dict['outer_spacing'] - 2*geom_dict['spacing']
-        major_width = geom_dict['core_major_axis'] + geom_dict['spacing'] + coil_width/2
-        major_height = geom_dict['core_minor_axis'] +geom_dict['spacing'] + coil_height/2
-        major_length = geom_dict['core_length']/num_turns
+        coil_height = (geom_dict['core_length'] - (num_turns - 1) * geom_dict['spacing']) / num_turns
+        coil_width = geom_dict['outer_spacing'] - 2 * geom_dict['spacing']
+        major_width = geom_dict['core_major_axis'] + geom_dict['spacing'] + coil_width / 2
+        major_height = geom_dict['core_minor_axis'] + geom_dict['spacing'] + coil_height / 2
+        major_length = geom_dict['core_length'] / num_turns
 
-        self.make_rectangle(major_width, major_height, major_length, int(round(N/num_turns)))
+        self.make_rectangle(major_width, major_height, major_length, int(round(N / num_turns)))
         self.make_helix(self.local_spiral, num_turns)
         self.grad(np.transpose(self.main_spiral))
 
         points_per_coil_spiral = 20
         self.coil_sing_spiral = self.make_rectangle(coil_width, coil_height, 0, points_per_coil_spiral,
                                                     output=True, return_nd_array=True)
-        self.coil_spiral = self.make_helix(self.coil_sing_spiral, int(round(N/points_per_coil_spiral)), output=True)
+        self.coil_spiral = self.make_helix(self.coil_sing_spiral, int(round(N / points_per_coil_spiral)), output=True)
 
         self.map_points(np.transpose(self.coil_spiral), self.grad_array, np.transpose(self.main_spiral))
 
@@ -267,16 +292,3 @@ class FourierManipulation(object):
 fg = FourierManipulation()
 
 fg.make_coil(50000, plot=True)
-
-
-
-
-
-
-
-
-
-
-
-
-
