@@ -35,9 +35,7 @@ def read_data(file):
 
 
 def store_coil_points(array, filename='coil_array_points.bin'):
-    f = open(filename, mode='w')
-    f.write(array.tobytes())
-    f.close()
+    array.tofile(filename)
     print(str(len(array.tobytes())) + ' bytes successfully written to ' + filename)
     file_writes[filename] = time.ctime()
 
@@ -51,16 +49,24 @@ def fetch_coil_points(filename='coil_array_points.bin'):
 def start_up():
     running = True
     while running:
-        pass_manually = input('pass dimensions manually? (y/n): ')
-        if pass_manually in yes_answer:
-            input_dict = input_data(input_dict=True)
-            running = False
-            return input_dict
-        elif pass_manually in no_answer:
+        use_std_inputs = input('use standard dimensions? (y/n): ')
+        print(use_std_inputs)
+        if use_std_inputs in no_answer:
+            pass_manually = input('pass dimensions manually? (y/n): ')
+            if pass_manually in yes_answer:
+                input_dict = input_data(input_dict=True)
+                running = False
+            elif pass_manually in no_answer:
+                filename = input('enter filepath of coil dimensions: ')
+                input_dict = read_data(filename)
+                running = False
+            else:
+                print('unrecognised input...')
+                pass
+        elif use_std_inputs in yes_answer:
             input_dict = std_inputs_dict
-            # filename = input('enter filepath of coil dimensions: ')
-            # input_dict = self.read_data(filename)
             running = False
-            return input_dict
         else:
+            print('unrecognised input...')
             pass
+    return input_dict

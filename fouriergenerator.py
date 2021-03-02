@@ -3,75 +3,7 @@ import numpy as np
 import plotly.graph_objects as go
 import pandas as pd
 import json
-import time
 import datahandling
-
-
-# class DataHandling(object):
-#     def __init__(self):
-#         self.std_inputs_dict = {'core_length': 20.0,
-#                                 'core_minor_axis': 10.0,
-#                                 'core_major_axis': 20.0,
-#                                 'num_of_turns': 3.0,
-#                                 'outer_spacing': 5.0,
-#                                 'spacing': 0.5
-#                                 }
-#         self.yes_answer = ['y', 'Y', 'Yes', 'YES', 'yes']
-#         self.no_answer = ['n', 'N', 'no', 'NO', 'No']
-#         self.file_writes = {}
-#         self.file_reads = {}
-#
-#     def input_data(self, input_dict=False):
-#         if not input_dict:
-#             input_dict = self.std_inputs_dict
-#         else:
-#             input_dict = self.std_inputs_dict
-#             for key in input_dict:
-#                 input_dict[key] = float(input('Input ' + str(key) + ': '))
-#         return input_dict
-#
-#     def read_data(self, file):
-#         with open(file) as f:
-#             lines = f.readlines()
-#             input_dict = {}
-#             for line in lines:
-#                 input_dict[line[0]] = line[1]
-#         return input_dict
-#
-#     def insert_model(self, file):
-#         pass
-#
-#     def store_dict(self, stored_dict):
-#         pass
-#
-#     def store_coil_points(self, array, filename='coil_array_points.bin'):
-#         f = open(filename, mode='w')
-#         f.write(array.tobytes())
-#         f.close()
-#         print(str(len(array.tobytes())) + ' bytes successfully written to ' + filename)
-#         self.file_writes[filename] = time.ctime()
-#
-#     def fetch_coil_points(self, filename='coil_array_points.bin'):
-#         array = np.fromfile(filename)
-#         self.file_reads[filename] = time.ctime()
-#         return array
-#
-#     def start_up(self):
-#         running = True
-#         while running:
-#             pass_manually = input('pass dimensions manually? (y/n): ')
-#             if pass_manually in self.yes_answer:
-#                 input_dict = self.input_data(input_dict=True)
-#                 running = False
-#                 return input_dict
-#             elif pass_manually in self.no_answer:
-#                 input_dict = self.std_inputs_dict
-#                 # filename = input('enter filepath of coil dimensions: ')
-#                 # input_dict = self.read_data(filename)
-#                 running = False
-#                 return input_dict
-#             else:
-#                 pass
 
 
 class GeometryManipulation(object):
@@ -212,9 +144,9 @@ class GeometryManipulation(object):
                 angle_rad = np.arccos((np.dot(n, p)) / (np.linalg.norm(n) * np.linalg.norm(p)))
                 return angle_rad
 
-            rot_angle_y = np.pi/2 - angle(np.array([1, 0]),
-                                          np.array([(normal_vector[0]**2 + normal_vector[1]**2)**0.5,
-                                                    normal_vector[2]]))
+            rot_angle_y = np.pi / 2 - angle(np.array([1, 0]),
+                                            np.array([(normal_vector[0] ** 2 + normal_vector[1] ** 2) ** 0.5,
+                                                      normal_vector[2]]))
             rot_angle_z = angle(np.array([0, 1]), np.array([normal_vector[1], normal_vector[0]]))
 
             r_y = np.copy(np.array([np.array([np.cos(rot_angle_y), 0, np.sin(rot_angle_y)]),
@@ -235,7 +167,7 @@ class GeometryManipulation(object):
         else:
             self.point_array = np.transpose(np.array(mapped_list))
 
-    def make_coil(self, N, geom_dict=False, plot=False):
+    def make_coil(self, N, geom_dict=False, plot=False, store=True):
         """
         main script calling functions to make a 3D coil of designated size.
         :param: geom_dict, dictionary in std_input_dict format with geometry params.
@@ -270,24 +202,32 @@ class GeometryManipulation(object):
             self.fig.add_trace(go.Scatter3d(x=self.main_spiral[0], y=self.main_spiral[1], z=self.main_spiral[2]))
             self.fig.show()
 
+        if store:
+            datahandling.store_coil_points(self.point_array)
+
 
 class FourierManipulation(object):
     def __init__(self):
-        self.de_fm = DataHandling()
         self.fft_points_array = np.zeros((3, 1000))
-        self.unaltered_point_array = self.de_fm.fetch_coil_points()
+        self.unaltered_point_array = datahandling.fetch_coil_points()
 
     def fft_sample(self, sample_rate_percentage=0.5, offset=0):
-        down_sample_num = int(len(self.unaltered_point_array)*(1-sample_rate_percentage))
+        down_sample_num = int(len(self.unaltered_point_array) * (1 - sample_rate_percentage))
         deletable_indices = []
         for i in range(down_sample_num):
-            deletable_indices.append(int(round((i+0.5/down_sample_num)*len(self.unaltered_point_array)) + offset))
+            deletable_indices.append(int(round((i + 0.5 / down_sample_num) * len(self.unaltered_point_array)) + offset))
         sampled_indices = list(set(range(len(self.unaltered_point_array))) - set(deletable_indices))
         sampled_point_array = map(self.unaltered_point_array.__getitem__, sampled_indices)
         self.fft_points_array = sp.fft.fftn(sampled_point_array)
 
 
-de = DataHandling()
 gm = GeometryManipulation()
 
-gm.make_coil(50000, plot=True)
+# gm.make_coil(50000, plot=True)
+
+fg = FourierManipulation()
+
+point_array = datahandling.fetch_coil_points()
+fig = go.Figure()
+fig.add_trace(go.Scatter3d(x=point_array[0], y=point_array[1], z=point_array[2],
+                           mode='lines'))

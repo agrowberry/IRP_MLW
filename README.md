@@ -9,3 +9,4 @@ This project provides several tools for programmatically designing, evaluating a
 Provides a set of tools for constructing basic coil winding geometries. With further tools for parameterising the construction. 
 
 Also provides means for constructing the fourier transformed representation.
+
