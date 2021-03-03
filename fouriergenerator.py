@@ -2,7 +2,6 @@ import scipy as sp
 import numpy as np
 import plotly.graph_objects as go
 import pandas as pd
-import json
 import datahandling
 
 
@@ -198,8 +197,9 @@ class GeometryManipulation(object):
 
         if plot:
             self.fig.add_trace(go.Scatter3d(x=self.point_array[0], y=self.point_array[1], z=self.point_array[2],
-                                            mode='lines'))
-            self.fig.add_trace(go.Scatter3d(x=self.main_spiral[0], y=self.main_spiral[1], z=self.main_spiral[2]))
+                                            mode='lines', name='Coil Surface Outline'))
+            self.fig.add_trace(go.Scatter3d(x=self.main_spiral[0], y=self.main_spiral[1], z=self.main_spiral[2],
+                                            name='Coil Path'))
             self.fig.show()
 
         if store:
@@ -221,13 +221,3 @@ class FourierManipulation(object):
         self.fft_points_array = sp.fft.fftn(sampled_point_array)
 
 
-gm = GeometryManipulation()
-
-# gm.make_coil(50000, plot=True)
-
-fg = FourierManipulation()
-
-point_array = datahandling.fetch_coil_points()
-fig = go.Figure()
-fig.add_trace(go.Scatter3d(x=point_array[0], y=point_array[1], z=point_array[2],
-                           mode='lines'))

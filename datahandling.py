@@ -1,5 +1,8 @@
 import time
 import numpy as np
+import pandas as pd
+import json
+import sys
 
 
 std_inputs_dict = {'core_length': 20.0,
@@ -34,16 +37,21 @@ def read_data(file):
     return input_dict
 
 
-def store_coil_points(array, filename='coil_array_points.bin'):
-    array.tofile(filename)
-    print(str(len(array.tobytes())) + ' bytes successfully written to ' + filename)
+def store_coil_points(array, filename='coil_array_points.json'):
+    df = pd.DataFrame(np.transpose(array), columns=["x", "y", 'z'])
+    df_json = df.to_json(orient="records")
+    with open(filename, "w") as outfile:
+        json.dump(df_json, outfile)
+    print(str(sys.getsizeof(json.dumps(df_json))) + ' bytes successfully written to ' + filename)
     file_writes[filename] = time.ctime()
 
 
-def fetch_coil_points(filename='coil_array_points.bin'):
-    array = np.fromfile(filename)
+def fetch_coil_points(filename='coil_array_points.json'):
+    with open(filename, 'r') as openfile:
+        json_object = json.load(openfile)
+    df = pd.read_json(json_object, orient="records")
     file_reads[filename] = time.ctime()
-    return array
+    return np.array([pd.array(df['x']), pd.array(df['y']), pd.array(df['z'])])
 
 
 def start_up():

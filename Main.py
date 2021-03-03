@@ -1,7 +1,14 @@
-import plotly.graph_objects as go
-import numpy as np
-import sympy as sp
+import datahandling
+import fouriergenerator
 
+
+gm = fouriergenerator.GeometryManipulation()
+fm = fouriergenerator.FourierManipulation()
+
+
+gm.make_coil(50000, plot=True)
+
+gm.fig.write_html('coil_figure.html')
 
 
 

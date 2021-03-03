@@ -10,3 +10,4 @@ Provides a set of tools for constructing basic coil winding geometries. With fur
 
 Also provides means for constructing the fourier transformed representation.
 
+![](./coil_figure.html)
