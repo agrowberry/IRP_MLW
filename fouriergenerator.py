@@ -1,11 +1,13 @@
 import scipy as sp
+import scipy.signal as sig
 import numpy as np
 import plotly.graph_objects as go
 import pandas as pd
 import datahandling
+from plotly.subplots import make_subplots
 
 
-class GeometryManipulation(object):
+class GeometryManipulation():
     def __init__(self):
         self.fig = go.Figure()
         self.geom_dict = {}
@@ -16,76 +18,19 @@ class GeometryManipulation(object):
         self.coil_sing_spiral = np.zeros((3, 1000))
         self.coil_spiral = np.zeros((3, 1000))
 
-    def make_rectangle(self, width, height, length, n, output=False, return_nd_array=False):
-        """
-        returns rectangular helix of specified dimensions in array.
-        :param width: width of rectangle
-        :param height:height of rectangle
-        :param length:length of coil revolution
-        :param output: conditional dictating whether or not method is static and outputs array, or keeps attribute
-         within class.
-        :param return_nd_array: conditional for return format.
-        :param n: no. of points in helix.
-        :return: x, y, z || or 3d array of these variables.
-        """
-        corners = [(width / 2, 0),
-                   (width / 2, height / 2),
-                   (-width / 2, height / 2),
-                   (-width / 2, -height / 2),
-                   (width / 2, -height / 2),
-                   (width / 2, 0)]
-        x_list = []
-        y_list = []
-        perimeter = 2 * width + 2 * height
-        magnitude = lambda p1, p2: ((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2) ** 0.5
-        for index, corner in enumerate(corners):
-            last_corner = corners[index - 1]
-            x_points = np.linspace(last_corner[0],
-                                   corner[0], int(round(magnitude(corner, last_corner) * n / perimeter)))
-            x_list.append(x_points)
-            y_points = np.linspace(last_corner[1],
-                                   corner[1], int(round(magnitude(corner, last_corner) * n / perimeter)))
-            y_list.append(y_points)
-        x = np.concatenate(x_list, axis=0)
-        y = np.concatenate(y_list, axis=0)
+    def make_helix(self, width, height, length, num_turns, n, output=False):
+        t = np.linspace(0, 2 * num_turns, n)
+        per = 1
+        l = 1.57
+        x = 1 * (height / np.pi * (
+                np.arcsin(np.sin((np.pi / per) * t + l)) + np.arccos(np.cos((np.pi / per) * t + l))) - height / 2)
 
-        # fix length discrepancy caused by rounding error.
-        if x.shape[0] != n:
-            diff_len = n - x.shape[0]
-            x = np.append(x, np.full(int(diff_len), x[-1]))
-            y = np.append(y, np.full(int(diff_len), y[-1]))
+        y = 1 * (width / np.pi * (
+                np.arcsin(np.sin((np.pi / per) * t)) + np.arccos(np.cos((np.pi / per) * t))) - width / 2)
 
-        z = np.linspace(0, length, y.shape[0])
+        z = np.linspace(0, length, n)
 
-        if output:
-            if return_nd_array:
-                return np.array([x, y, z])
-            else:
-                return x, y, z
-        else:
-            self.local_spiral = np.array([x, y, z])
-
-    def make_helix(self, single_spiral, no_of_turns, output=False):
-        """
-        returns no_of_turns copies of a defined spiral.
-        :param single_spiral: defined single revolution spiral to be extended.
-        :param no_of_turns: number of revolutions of the returned spiral.
-        :param output: kwarg to return static output.
-        :return helix_array: nd-array of returned spiral.
-        """
-        helix_list = [[], [], []]
-        helix_array = np.zeros(single_spiral.shape)
-        length = single_spiral[2][-1]
-        for i in range(no_of_turns):
-            nth_spiral = np.copy(single_spiral)
-            nth_spiral[2] = single_spiral[2] + i * length
-            for j in range(3):
-                helix_list[j].append(nth_spiral[j])
-            helix_array = np.array([np.concatenate(helix_list[0]),
-                                    np.concatenate(helix_list[1]),
-                                    np.concatenate(helix_list[2])])
-            print('building spiral ' + str(i) + ' of ' + str(no_of_turns) + ' : ' + str(100 * i / no_of_turns) + '%',
-                  end='\r')
+        helix_array = np.array([x, y, z])
         if output:
             return helix_array
         else:
@@ -100,25 +45,15 @@ class GeometryManipulation(object):
         :param output: kwarg to return grad_array as object or to reassign self.grad_array.
         :return grad array: n-dimensional array of sequential gradients.
         """
-        grad_array = []
-        last_vector = 0
-        for index, vector in enumerate(vector_array):
-            if index == 1:
-                last_vector = vector
-            else:
-                grad = vector - last_vector
-                grad_array.append(grad)
-                last_vector = vector
-
-        grad_array = grad_array[0:1] + grad_array
-        grad_array = np.stack(grad_array)
+        vector_array = np.transpose(vector_array)
+        df = pd.DataFrame({'x': vector_array[0],
+                           'y': vector_array[1],
+                           'z': vector_array[2]})
+        grad_df = df.diff()
+        grad_df.iloc[0] = grad_df.iloc[1]
+        grad_array = grad_df.to_numpy()
         if normalise:
-            norm_grad_list = []
-            for vector in grad_array:
-                norm_vector = vector / np.linalg.norm(vector)
-                norm_grad_list.append(norm_vector)
-            grad_array = np.stack(norm_grad_list)
-
+            grad_array = grad_array / np.apply_along_axis(np.linalg.norm, 0, np.transpose(grad_array))[:, None]
         if output:
             return grad_array
         else:
@@ -134,30 +69,28 @@ class GeometryManipulation(object):
         :return: mapped_array: n-dimensional array of mapped points.
         """
         mapped_list = []
+
+        def angle(n, p):
+            angle_rad = np.arccos((np.dot(n, p)) / (np.linalg.norm(n) * np.linalg.norm(p)))
+            return angle_rad
+
         for index, unmapped_vector in enumerate(unmapped_local_array):
             normal_vector = normal_array[index]
             unmapped_vector = unmapped_local_array[index]
             trans_vector = trans_array[index]
-
-            def angle(n, p):
-                angle_rad = np.arccos((np.dot(n, p)) / (np.linalg.norm(n) * np.linalg.norm(p)))
-                return angle_rad
-
-            rot_angle_y = np.pi / 2 - angle(np.array([1, 0]),
-                                            np.array([(normal_vector[0] ** 2 + normal_vector[1] ** 2) ** 0.5,
-                                                      normal_vector[2]]))
-            rot_angle_z = angle(np.array([0, 1]), np.array([normal_vector[1], normal_vector[0]]))
-
-            r_y = np.copy(np.array([np.array([np.cos(rot_angle_y), 0, np.sin(rot_angle_y)]),
-                                    np.array([0, 1, 0]),
-                                    np.array([-np.sin(rot_angle_y), 0, np.cos(rot_angle_y)])]))
-            r_z = np.copy(np.array([np.array([np.cos(rot_angle_z), -np.sin(rot_angle_z), 0]),
-                                    np.array([np.sin(rot_angle_z), np.cos(rot_angle_z), 0]),
-                                    np.array([0, 0, 1])]))
-
-            mapped_vector = np.copy(np.matmul(r_y, unmapped_vector))
-            mapped_vector = np.copy(np.matmul(r_z, mapped_vector))
-            mapped_vector = np.copy(mapped_vector + trans_vector)
+            # if np.array_equal(normal_vector, normal_array[index - 1]) or index == 0:
+            if True:
+                rot_angle_y = np.pi / 2 - angle(np.array([1, 0]),
+                                                np.array([(normal_vector[0] ** 2 + normal_vector[1] ** 2) ** 0.5,
+                                                          normal_vector[2]]))
+                rot_angle_z = angle(np.array([0, 1]), np.array([normal_vector[1], normal_vector[0]]))
+                r_y = np.copy(np.array([np.array([np.cos(rot_angle_y), 0, np.sin(rot_angle_y)]),
+                                        np.array([0, 1, 0]),
+                                        np.array([-np.sin(rot_angle_y), 0, np.cos(rot_angle_y)])]))
+                r_z = np.copy(np.array([np.array([np.cos(rot_angle_z), -np.sin(rot_angle_z), 0]),
+                                        np.array([np.sin(rot_angle_z), np.cos(rot_angle_z), 0]),
+                                        np.array([0, 0, 1])]))
+            mapped_vector = np.copy(np.matmul(r_z, np.matmul(r_y, unmapped_vector)) + trans_vector)
             mapped_list.append(mapped_vector)
             print('mapping points ' + str(index) + ' of ' + str(unmapped_local_array.shape[0]) + ' : ' + str(
                 100 * index / unmapped_local_array.shape[0]) + '%', end='\r')
@@ -166,58 +99,152 @@ class GeometryManipulation(object):
         else:
             self.point_array = np.transpose(np.array(mapped_list))
 
-    def make_coil(self, N, geom_dict=False, plot=False, store=True):
+    def make_coil(self, N, geom_dict=datahandling.start_up(), plot=False, store=True):
         """
         main script calling functions to make a 3D coil of designated size.
+        :param store: conditional to store returned array in .json file.
+        :type store: boolean
+        :param plot: conditional to plot returned array.
+        :type plot: boolean
         :param: geom_dict, dictionary in std_input_dict format with geometry params.
-        :param: N, no. of points in returned array.
+        :type geom_dict: dict
+        :param N: no. of points in returned array.
+        :type N: int
         :return: array of points describing square coil around rectangular core.
         """
-
-        if not geom_dict:
-            geom_dict = datahandling.start_up()
-
         num_turns = int(geom_dict['num_of_turns'])
         coil_height = (geom_dict['core_length'] - (num_turns - 1) * geom_dict['spacing']) / num_turns
         coil_width = geom_dict['outer_spacing'] - 2 * geom_dict['spacing']
         major_width = geom_dict['core_major_axis'] + geom_dict['spacing'] + coil_width / 2
         major_height = geom_dict['core_minor_axis'] + geom_dict['spacing'] + coil_height / 2
-        major_length = geom_dict['core_length'] / num_turns
+        major_length = geom_dict['core_length']
 
-        self.make_rectangle(major_width, major_height, major_length, int(round(N / num_turns)))
-        self.make_helix(self.local_spiral, num_turns)
+        self.make_helix(major_width, major_height, major_length, num_turns, N)
         self.grad(np.transpose(self.main_spiral))
-
-        points_per_coil_spiral = 20
-        self.coil_sing_spiral = self.make_rectangle(coil_width, coil_height, 0, points_per_coil_spiral,
-                                                    output=True, return_nd_array=True)
-        self.coil_spiral = self.make_helix(self.coil_sing_spiral, int(round(N / points_per_coil_spiral)), output=True)
-
+        self.coil_spiral = self.make_helix(coil_width, coil_height, 0, int(round(N / 20)), N,
+                                           output=True)
         self.map_points(np.transpose(self.coil_spiral), self.grad_array, np.transpose(self.main_spiral))
-
         if plot:
             self.fig.add_trace(go.Scatter3d(x=self.point_array[0], y=self.point_array[1], z=self.point_array[2],
-                                            mode='lines', name='Coil Surface Outline'))
+                                            mode='lines', name='Coil Surface'))
             self.fig.add_trace(go.Scatter3d(x=self.main_spiral[0], y=self.main_spiral[1], z=self.main_spiral[2],
                                             name='Coil Path'))
-            self.fig.show()
 
+            max_main_dim = max(major_length, major_width, major_height)
+            max_local_dim = max(coil_width, coil_height)
+            axis_lims = [-(max_main_dim / 2 + max_local_dim + 1), (max_main_dim / 2 + max_local_dim + 1)]
+            self.fig.update_layout(scene=dict(xaxis=dict(range=axis_lims),
+                                              yaxis=dict(range=axis_lims),
+                                              zaxis=dict(range=axis_lims)))
+            self.fig.show()
         if store:
             datahandling.store_coil_points(self.point_array)
 
 
-class FourierManipulation(object):
+class FourierManipulation():
     def __init__(self):
         self.fft_points_array = np.zeros((3, 1000))
-        self.unaltered_point_array = datahandling.fetch_coil_points()
+        self.unaltered_point_array = np.transpose(datahandling.fetch_coil_points())
+        self.reconstructed_point_array = np.zeros(self.unaltered_point_array.shape)
 
-    def fft_sample(self, sample_rate_percentage=0.5, offset=0):
-        down_sample_num = int(len(self.unaltered_point_array) * (1 - sample_rate_percentage))
+    @staticmethod
+    def nextpow2(n):
+        """
+        returns next highest power of 2 (e.g. for n = 5 returns 8.)
+        :param n:
+        :return:
+        """
+        power = 0
+        while True:
+            answer = 2 ** power
+            if answer > n:
+                break
+            power += 1
+        return answer
+
+    def fft_sample(self, sample_rate_percentage=0.5, offset=0, output=False):
+        """
+        Returns the n-dimensional fft of a given n-dimensional array of points. Down samples and offsets the
+        transformed array.
+
+        :param sample_rate_percentage: the size ratio of the returned array (new size = old size * sample_rate_percentage)
+        :param offset: the no. of points by which the sampling is shifted.
+        :param output: conditional to make method static.
+        :return self.fft_points_array: transformed and down sampled nd-array of fourier freq. coefficients.
+        """
+        # no. of items from list to be removed.
+        self.fft_points_array = sp.fft.fftn(self.unaltered_point_array)
+        down_sample_num = int(len(self.fft_points_array) * (1 - sample_rate_percentage))
         deletable_indices = []
+        # assigns the indices of the array to be removed (appended to deletable_indices)
         for i in range(down_sample_num):
-            deletable_indices.append(int(round((i + 0.5 / down_sample_num) * len(self.unaltered_point_array)) + offset))
-        sampled_indices = list(set(range(len(self.unaltered_point_array))) - set(deletable_indices))
-        sampled_point_array = map(self.unaltered_point_array.__getitem__, sampled_indices)
-        self.fft_points_array = sp.fft.fftn(sampled_point_array)
+            # finds equally spaced points in the index space [***-***-***].
+            deletable_indices.append(int(round(((i + 0.5) / down_sample_num) * len(self.fft_points_array)) + offset))
+        # creates list of indices to sample the unaltered_point_array.
+        sampled_indices = list(set(range(len(self.fft_points_array))) - set(deletable_indices))
+        # maps the list of indices to be sampled to an nd array of sampled points.
+        sampled_fft_point_array = np.transpose([*map(self.fft_points_array.__getitem__, sampled_indices)])
 
+        self.fft_points_array = np.copy(sampled_fft_point_array)
+        if output:
+            return self.fft_points_array
 
+    def plot_fft(self, fft_array=None, save=False):
+        """
+        plots three dimensional fft frequency spectrum of passed array.
+        :param fft_array: complex nd-array to be plotted. if None class fft array is used
+        :param save: conditional to save plot as html
+        :return:
+        """
+        if fft_array is None:
+            fft_array = self.fft_points_array
+        sample_length = self.unaltered_point_array.shape[0]
+        sample_range = np.linspace(1, sample_length, fft_array.shape[1])
+        fft_array = np.transpose(fft_array)
+        fft_array = np.copy(np.transpose(fft_array[:int(fft_array.shape[0] / 2)]))
+        fig = make_subplots(rows=3, cols=1,
+                            subplot_titles=("X-Fourier Transform", "Y-Fourier Transform", "Z-Fourier Transform"),
+                            shared_xaxes=True)
+        fig.add_trace(go.Scatter(x=sample_range, y=np.real(fft_array[0]),
+                                 mode='lines',
+                                 name='x-transform real'),
+                      row=1, col=1)
+        fig.add_trace(go.Scatter(x=sample_range, y=np.imag(fft_array[0]),
+                                 mode='lines',
+                                 name='x-transform imaginary'),
+                      row=1, col=1)
+        fig.add_trace(go.Scatter(x=sample_range, y=np.real(fft_array[1]),
+                                 mode='lines',
+                                 name='y-transform real'),
+                      row=2, col=1)
+        fig.add_trace(go.Scatter(x=sample_range, y=np.imag(fft_array[1]),
+                                 mode='lines',
+                                 name='y-transform imaginary'),
+                      row=2, col=1)
+        fig.add_trace(go.Scatter(x=sample_range, y=np.real(fft_array[2]),
+                                 mode='lines',
+                                 name='z-transform real'),
+                      row=3, col=1)
+        fig.add_trace(go.Scatter(x=sample_range, y=np.imag(fft_array[2]),
+                                 mode='lines',
+                                 name='z-transform imaginary'),
+                      row=3, col=1)
+        fig.update_yaxes(type='linear')
+        fig.show()
+        if save:
+            fig.write_html('fft_sample_figure.html')
+
+    def reconstruct_space(self, output=False):
+        """
+        Constructs nd-array of points using fft array. Point space matches shape of original points.
+        :param output: conditional to keep method static or return output.
+        :return:
+        """
+
+    def r_squared(self, perfect_array=None, fft_sampled_array=None):
+        if perfect_array is None:
+            perfect_array = self.unaltered_point_array
+        if fft_sampled_array is None:
+            fft_sampled_array = self.fft_points_array
+        sampled_array = sp.fft.ifftn(fft_sampled_array)
+        pass

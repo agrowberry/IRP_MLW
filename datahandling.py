@@ -3,9 +3,9 @@ import numpy as np
 import pandas as pd
 import json
 import sys
+import flask
 
-
-std_inputs_dict = {'core_length': 20.0,
+std_inputs_dict = {'core_length': 5.0,
                    'core_minor_axis': 10.0,
                    'core_major_axis': 20.0,
                    'num_of_turns': 3.0,
@@ -78,3 +78,7 @@ def start_up():
             print('unrecognised input...')
             pass
     return input_dict
+
+
+
+
