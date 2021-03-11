@@ -1,7 +1,7 @@
 import scipy as sp
-import scipy.signal as sig
 import numpy as np
 import plotly.graph_objects as go
+import plotly
 import pandas as pd
 import datahandling
 from plotly.subplots import make_subplots
@@ -121,24 +121,41 @@ class GeometryManipulation():
 
         self.make_helix(major_width, major_height, major_length, num_turns, N)
         self.grad(np.transpose(self.main_spiral))
-        self.coil_spiral = self.make_helix(coil_width, coil_height, 0, int(round(N / 20)), N,
+        self.coil_spiral = self.make_helix(coil_width, coil_height, 0, int(round(N / 200)), N,
                                            output=True)
         self.map_points(np.transpose(self.coil_spiral), self.grad_array, np.transpose(self.main_spiral))
         if plot:
-            self.fig.add_trace(go.Scatter3d(x=self.point_array[0], y=self.point_array[1], z=self.point_array[2],
-                                            mode='lines', name='Coil Surface'))
-            self.fig.add_trace(go.Scatter3d(x=self.main_spiral[0], y=self.main_spiral[1], z=self.main_spiral[2],
-                                            name='Coil Path'))
-
-            max_main_dim = max(major_length, major_width, major_height)
-            max_local_dim = max(coil_width, coil_height)
-            axis_lims = [-(max_main_dim / 2 + max_local_dim + 1), (max_main_dim / 2 + max_local_dim + 1)]
-            self.fig.update_layout(scene=dict(xaxis=dict(range=axis_lims),
-                                              yaxis=dict(range=axis_lims),
-                                              zaxis=dict(range=axis_lims)))
-            self.fig.show()
+            self.plot_point_array(major_length, major_width, major_height, coil_width, coil_height, store='png')
         if store:
             datahandling.store_coil_points(self.point_array)
+
+    def plot_point_array(self, m_l, m_w, m_h, c_w, c_h, store=None):
+        """
+        Creates and displays 3d scatter plot of point array.
+        :param store: string specifying file format of stored plot. e.g. 'png'
+        :type store: basestring
+        :param m_l:major_length
+        :param m_w:major_width
+        :param m_h:major_height
+        :param c_w:coil_width
+        :param c_h:coil_height
+        :return:
+        """
+        self.fig.add_trace(go.Scatter3d(x=self.point_array[0], y=self.point_array[1], z=self.point_array[2],
+                                        mode='lines', name='Coil Surface'))
+        self.fig.add_trace(go.Scatter3d(x=self.main_spiral[0], y=self.main_spiral[1], z=self.main_spiral[2],
+                                        name='Coil Path'))
+
+        max_main_dim = max(m_l, m_w, m_h)
+        max_local_dim = max(c_w, c_h)
+        axis_lims = [-(max_main_dim / 2 + max_local_dim + 1), (max_main_dim / 2 + max_local_dim + 1)]
+        self.fig.update_layout(scene=dict(xaxis=dict(range=axis_lims),
+                                          yaxis=dict(range=axis_lims),
+                                          zaxis=dict(range=axis_lims)))
+        if store is not None:
+            self.fig.write_image('point_array_scatter', format=store)
+
+        self.fig.show()
 
 
 class FourierManipulation():
