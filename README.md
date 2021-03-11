@@ -10,5 +10,8 @@ Provides a set of tools for constructing basic coil winding geometries. With fur
 
 The two main objects in the module are .point_array and .fft_points_array:
 - .point_array exists in the real space and is a numpy 3-dimensional array of points describing the winding coil.
+([point array visualisation](https://agrowberry.github.io/IRP_MLW/coil_figure.html))
+- .fft_points_array is the frequency domain counterpart to .point_array. It represents the three fast fourier transformed coefficients. The coefficients are stored as a 3-dimensional array of complex coefficients.
+([fft array visualisation](https://agrowberry.github.io/IRP_MLW/fft_sample_figure.html))
 
-- .fft_points_array is the frequency domain counterpart to .point_array. It represents the three fast fourier transformed coefficients
+<iframe id="igraph" scrolling="no" style="border:none;" seamless="seamless" src="https://agrowberry.github.io/IRP_MLW/fft_sample_figure.html" height="525" width="100%"></iframe>
