@@ -14,4 +14,4 @@ The two main objects in the module are .point_array and .fft_points_array:
 - .fft_points_array is the frequency domain counterpart to .point_array. It represents the three fast fourier transformed coefficients. The coefficients are stored as a 3-dimensional array of complex coefficients.
 ([fft array visualisation](https://agrowberry.github.io/IRP_MLW/fft_sample_figure.html))
 
-![](https://agrowberry.github.io/IRP_MLW/fft_sample_figure.htmlhttps://agrowberry.github.io/IRP_MLW/fft_sample_figure.html)
+The main aim of this module is to provide the user with a dimensionally reduced representation of the 
