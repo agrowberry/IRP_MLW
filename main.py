@@ -1,13 +1,11 @@
 import datahandling
 import fouriergenerator
-import numpy as np
-import plotly.graph_objects as go
-import scipy as sp
-import open3d as o3d
+
 
 gm = fouriergenerator.GeometryManipulation()
 fm = fouriergenerator.FourierManipulation()
 
+<<<<<<< Updated upstream
 gm.make_coil(50000, plot=True)
 
 # pc_array = np.transpose(datahandling.fetch_coil_points())
@@ -30,3 +28,19 @@ gm.make_coil(50000, plot=True)
 #
 #
 #
+=======
+
+gm.make_coil(50000, plot=True)
+
+gm.fig.write_html('coil_figure.html', include_plotlyjs='cdn')
+
+
+
+
+
+
+
+
+
+
+>>>>>>> Stashed changes
