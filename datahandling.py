@@ -37,7 +37,7 @@ def read_data(file):
     return input_dict
 
 
-def store_coil_points(array, filename='/docs/coil_array_points.json'):
+def store_coil_points(array, filename='docs/coil_array_points.json'):
     df = pd.DataFrame(np.transpose(array), columns=["x", "y", 'z'])
     df_json = df.to_json(orient="records")
     with open(filename, "w") as outfile:
@@ -46,7 +46,7 @@ def store_coil_points(array, filename='/docs/coil_array_points.json'):
     file_writes[filename] = time.ctime()
 
 
-def fetch_coil_points(filename='/docs/coil_array_points.json'):
+def fetch_coil_points(filename='docs/coil_array_points.json'):
     with open(filename, 'r') as openfile:
         json_object = json.load(openfile)
     df = pd.read_json(json_object, orient="records")

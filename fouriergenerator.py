@@ -1,13 +1,15 @@
 import scipy as sp
 import numpy as np
 import plotly.graph_objects as go
-import plotly
 import pandas as pd
 import datahandling
 from plotly.subplots import make_subplots
 
 
-class GeometryManipulation():
+class GeometryManipulation:
+    """
+    class object representing real-space coil.
+    """
     def __init__(self):
         self.fig = go.Figure()
         self.geom_dict = {}
@@ -121,8 +123,13 @@ class GeometryManipulation():
 
         self.make_helix(major_width, major_height, major_length, num_turns, N)
         self.grad(np.transpose(self.main_spiral))
-        self.coil_spiral = self.make_helix(coil_width, coil_height, 0, int(round(N / 200)), N,
-                                           output=True)
+        self.coil_spiral = self.make_helix(coil_width,
+                                           coil_height,
+                                           0,
+                                           int(round(N / 200)),
+                                           N,
+                                           output=True
+                                           )
         self.map_points(np.transpose(self.coil_spiral), self.grad_array, np.transpose(self.main_spiral))
         if plot:
             self.plot_point_array(major_length, major_width, major_height, coil_width, coil_height, store='png')
@@ -158,14 +165,17 @@ class GeometryManipulation():
         self.fig.show()
 
 
-class FourierManipulation():
+class FourierManipulation:
+    """
+    class object representing frequency domain coil.
+    """
     def __init__(self):
         self.fft_points_array = np.zeros((3, 1000))
         self.unaltered_point_array = np.transpose(datahandling.fetch_coil_points())
         self.reconstructed_point_array = np.zeros(self.unaltered_point_array.shape)
 
     @staticmethod
-    def nextpow2(n):
+    def nextpower2(n):
         """
         returns next highest power of 2 (e.g. for n = 5 returns 8.)
         :param n:
