@@ -3,12 +3,20 @@ import numpy as np
 import pandas as pd
 import json
 import sys
-import flask
+import pathlib
 
+
+current_directory = pathlib.Path().absolute()
+
+# echo is conditional for whether or not to print outputs to console
+echo = True
+# standard set of dimensions
 std_inputs_dict = {'core_length': 5.0,
                    'core_minor_axis': 10.0,
                    'core_major_axis': 20.0,
-                   'num_of_turns': 3.0,
+                   'core_radius': 2.0,
+                   'coil_radius_percentage': 0.1,
+                   'num_of_turns': 4.0,
                    'outer_spacing': 5.0,
                    'spacing': 0.5
                    }
@@ -42,7 +50,9 @@ def store_coil_points(array, filename='docs/coil_array_points.json'):
     df_json = df.to_json(orient="records")
     with open(filename, "w") as outfile:
         json.dump(df_json, outfile)
-    print(str(sys.getsizeof(json.dumps(df_json))) + ' bytes successfully written to ' + filename)
+    if echo:
+        print(str(sys.getsizeof(json.dumps(df_json))) + ' bytes successfully written to %s/%s'
+              % (str(current_directory), filename))
     file_writes[filename] = time.ctime()
 
 
@@ -51,6 +61,8 @@ def fetch_coil_points(filename='docs/coil_array_points.json'):
         json_object = json.load(openfile)
     df = pd.read_json(json_object, orient="records")
     file_reads[filename] = time.ctime()
+    if echo:
+        print('points fetched successfully from %s/%s' % (current_directory, filename))
     return np.array([pd.array(df['x']), pd.array(df['y']), pd.array(df['z'])])
 
 
@@ -58,7 +70,6 @@ def start_up():
     running = True
     while running:
         use_std_inputs = input('use standard dimensions? (y/n): ')
-        print(use_std_inputs)
         if use_std_inputs in no_answer:
             pass_manually = input('pass dimensions manually? (y/n): ')
             if pass_manually in yes_answer:
@@ -78,6 +89,38 @@ def start_up():
             print('unrecognised input...')
             pass
     return input_dict
+
+
+def progressbar(current, maximum, message='working', exit_message='finished'):
+    if echo:
+        if current == 0:
+            print(message)
+            progressbar.last_percentage = None
+        percentage = int(round(((current+1)/maximum) * 100))
+        barfill = int(round(percentage*0.5))
+        lp = progressbar.last_percentage
+        if current + 1 == maximum:
+            print('[%-50s] %d%%' % ('='*barfill, percentage))
+            print(exit_message, end='\n')
+        else:
+            if percentage != progressbar.last_percentage:
+                print('[%-50s] %d%%' % ('='*barfill, percentage), end='\r')
+                time.sleep(0.05)
+        progressbar.last_percentage = percentage
+    elif not echo:
+        pass
+
+
+def workingmessage(message):
+    if echo:
+        output_slashes = ['|', '/', '-', '\\', '|', '/', '-', '\\']
+        print('%s : %1s ...' % (message, output_slashes[workingmessage.count%7]), end='\r')
+        workingmessage.count += 1
+        time.sleep(0.1)
+    elif not echo:
+        pass
+
+
 
 
 

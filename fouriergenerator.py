@@ -10,29 +10,67 @@ class GeometryManipulation:
     """
     class object representing real-space coil.
     """
-    def __init__(self):
+    def __init__(self, num=None):
+        self.n = num
         self.fig = go.Figure()
         self.geom_dict = {}
         self.point_array = np.zeros((3, 1000))
         self.local_spiral = np.zeros((3, 1000))
         self.main_spiral = np.zeros((3, 1000))
         self.grad_array = np.zeros((3, 1000))
-        self.coil_sing_spiral = np.zeros((3, 1000))
         self.coil_spiral = np.zeros((3, 1000))
 
-    def make_helix(self, width, height, length, num_turns, n, output=False):
-        t = np.linspace(0, 2 * num_turns, n)
-        per = 1
-        l = 1.57
-        x = 1 * (height / np.pi * (
-                np.arcsin(np.sin((np.pi / per) * t + l)) + np.arccos(np.cos((np.pi / per) * t + l))) - height / 2)
+    def make_helix(self, width, height, length, num_turns, radius, output=False):
+        """
+        produces square-helical 3d point array of n points.
+        :param width:
+        :param height:
+        :param length:
+        :param num_turns:
+        :param radius:
+        :param output:
+        :return:
+        """
+        num_per_turn = int(round(self.n / num_turns))
+        perimeter = 2 * (height - 2 * radius) + 2 * (width - 2 * radius) + 2 * np.pi * radius
+        n_w = int(round((width - 2 * radius) * (num_per_turn / perimeter)))
+        n_h = int(round((height - 2 * radius) * (num_per_turn / perimeter)))
+        n_r = int(round((2 * np.pi * radius) * (num_per_turn / perimeter)))
 
-        y = 1 * (width / np.pi * (
-                np.arcsin(np.sin((np.pi / per) * t)) + np.arccos(np.cos((np.pi / per) * t))) - width / 2)
+        def piecewise(coil_height, coil_radius, n_height, n_width):
+            corner_array = coil_radius * np.sin(np.linspace(0, 2 * np.pi, n_r))
+            returned_array = np.full(n_width, coil_height / 2)
+            returned_array = np.append(returned_array,
+                                       corner_array[len(corner_array) // 4:len(corner_array) // 2] + coil_height / 2 - coil_radius)
+            returned_array = np.append(returned_array, np.linspace(coil_height / 2 - coil_radius, -coil_height / 2 + coil_radius, n_height))
+            returned_array = np.append(returned_array,
+                                       corner_array[2 * len(corner_array) // 4:3 * len(corner_array) // 4] - coil_height / 2 + coil_radius)
+            returned_array = np.append(returned_array, np.full(n_width, -coil_height / 2))
+            returned_array = np.append(returned_array,
+                                       corner_array[3 * len(corner_array) // 4:] - coil_height / 2 + coil_radius)
+            returned_array = np.append(returned_array, np.linspace(-coil_height / 2 + coil_radius, coil_height / 2 - coil_radius, n_height))
+            returned_array = np.append(returned_array,
+                                       corner_array[:len(corner_array) // 4] + coil_height / 2 - coil_radius)
+            if len(returned_array) != num_per_turn:
+                returned_array = np.append(returned_array,
+                                           np.full(num_per_turn - len(returned_array),
+                                                   returned_array[-1]))
 
-        z = np.linspace(0, length, n)
+            return returned_array
 
-        helix_array = np.array([x, y, z])
+        x = piecewise(height, radius, n_h, n_w)
+        y = piecewise(width, radius, n_w, n_h)
+        y = np.append(y[n_h + n_r // 4:], y[:n_h + n_r // 4])
+
+        vector_list = [list(np.copy(x)), list(np.copy(y)), '']
+        for i in range(num_turns - 1):
+            vector_list[0].extend(x)
+            vector_list[1].extend(y)
+            datahandling.progressbar(i, num_turns - 1, message='building coil')
+        vector_list[2] = np.linspace(0, length, len(vector_list[0]))
+        helix_array = np.array([np.array(vector_list[0]),
+                               np.array(vector_list[1]),
+                               vector_list[2]])
         if output:
             return helix_array
         else:
@@ -53,6 +91,14 @@ class GeometryManipulation:
                            'z': vector_array[2]})
         grad_df = df.diff()
         grad_df.iloc[0] = grad_df.iloc[1]
+        datahandling.workingmessage.count = 0
+        for index, row in grad_df.iterrows():
+            if np.abs(row['x']) < 0.0001 and np.abs(row['y']) < 0.0001:
+                datahandling.workingmessage('removing zero points')
+                grad_df.at[index, 'x'] = np.mean(
+                    np.array([grad_df.iloc[int(index + 1), 0], grad_df.iloc[int(index - 1), 0]]))
+                grad_df.at[index, 'y'] = np.mean(np.array([grad_df.iloc[index + 1, 1], grad_df.iloc[index - 1, 1]]))
+        print('gradient array built', end='\n')
         grad_array = grad_df.to_numpy()
         if normalise:
             grad_array = grad_array / np.apply_along_axis(np.linalg.norm, 0, np.transpose(grad_array))[:, None]
@@ -72,36 +118,33 @@ class GeometryManipulation:
         """
         mapped_list = []
 
-        def angle(n, p):
-            angle_rad = np.arccos((np.dot(n, p)) / (np.linalg.norm(n) * np.linalg.norm(p)))
+        def angle(p):
+            angle_rad = np.angle(p[0] + p[1]*1j, deg=False)
             return angle_rad
 
         for index, unmapped_vector in enumerate(unmapped_local_array):
             normal_vector = normal_array[index]
             unmapped_vector = unmapped_local_array[index]
             trans_vector = trans_array[index]
-            # if np.array_equal(normal_vector, normal_array[index - 1]) or index == 0:
-            if True:
-                rot_angle_y = np.pi / 2 - angle(np.array([1, 0]),
-                                                np.array([(normal_vector[0] ** 2 + normal_vector[1] ** 2) ** 0.5,
-                                                          normal_vector[2]]))
-                rot_angle_z = angle(np.array([0, 1]), np.array([normal_vector[1], normal_vector[0]]))
-                r_y = np.copy(np.array([np.array([np.cos(rot_angle_y), 0, np.sin(rot_angle_y)]),
-                                        np.array([0, 1, 0]),
-                                        np.array([-np.sin(rot_angle_y), 0, np.cos(rot_angle_y)])]))
-                r_z = np.copy(np.array([np.array([np.cos(rot_angle_z), -np.sin(rot_angle_z), 0]),
-                                        np.array([np.sin(rot_angle_z), np.cos(rot_angle_z), 0]),
-                                        np.array([0, 0, 1])]))
+            rot_angle_y = np.pi / 2 - angle(np.array([(normal_vector[0] ** 2 + normal_vector[1] ** 2) ** 0.5,
+                                                      normal_vector[2]]))
+            rot_angle_z = angle(np.array([normal_vector[0], normal_vector[1]]))
+            r_y = np.copy(np.array([np.array([np.cos(rot_angle_y), 0, np.sin(rot_angle_y)]),
+                                    np.array([0, 1, 0]),
+                                    np.array([-np.sin(rot_angle_y), 0, np.cos(rot_angle_y)])]))
+            r_z = np.copy(np.array([np.array([np.cos(rot_angle_z), -np.sin(rot_angle_z), 0]),
+                                    np.array([np.sin(rot_angle_z), np.cos(rot_angle_z), 0]),
+                                    np.array([0, 0, 1])]))
             mapped_vector = np.copy(np.matmul(r_z, np.matmul(r_y, unmapped_vector)) + trans_vector)
             mapped_list.append(mapped_vector)
-            print('mapping points ' + str(index) + ' of ' + str(unmapped_local_array.shape[0]) + ' : ' + str(
-                100 * index / unmapped_local_array.shape[0]) + '%', end='\r')
+            datahandling.progressbar(index, len(unmapped_local_array), message='mapping profile points to coil path',
+                                     exit_message='finished, coil built...')
         if output:
             return np.array(mapped_list)
         else:
             self.point_array = np.transpose(np.array(mapped_list))
 
-    def make_coil(self, N, geom_dict=datahandling.start_up(), plot=False, store=True):
+    def make_coil(self, n=None, geom_dict=datahandling.start_up(), plot=False, store=True):
         """
         main script calling functions to make a 3D coil of designated size.
         :param store: conditional to store returned array in .json file.
@@ -110,26 +153,33 @@ class GeometryManipulation:
         :type plot: boolean
         :param: geom_dict, dictionary in std_input_dict format with geometry params.
         :type geom_dict: dict
-        :param N: no. of points in returned array.
-        :type N: int
+        :param n: no. of points in returned array.
+        :type n: int
         :return: array of points describing square coil around rectangular core.
         """
+        if n is None:
+            n = self.n
         num_turns = int(geom_dict['num_of_turns'])
         coil_height = (geom_dict['core_length'] - (num_turns - 1) * geom_dict['spacing']) / num_turns
         coil_width = geom_dict['outer_spacing'] - 2 * geom_dict['spacing']
+        coil_radius = geom_dict['coil_radius_percentage']*((coil_width + coil_height)/2)
         major_width = geom_dict['core_major_axis'] + geom_dict['spacing'] + coil_width / 2
         major_height = geom_dict['core_minor_axis'] + geom_dict['spacing'] + coil_height / 2
         major_length = geom_dict['core_length']
+        major_radius = geom_dict['core_radius']
 
-        self.make_helix(major_width, major_height, major_length, num_turns, N)
+        self.make_helix(major_width,
+                        major_height,
+                        major_length,
+                        num_turns,
+                        major_radius)
         self.grad(np.transpose(self.main_spiral))
         self.coil_spiral = self.make_helix(coil_width,
                                            coil_height,
                                            0,
-                                           int(round(N / 200)),
-                                           N,
-                                           output=True
-                                           )
+                                           int(round(n / 50)),
+                                           coil_radius,
+                                           output=True)
         self.map_points(np.transpose(self.coil_spiral), self.grad_array, np.transpose(self.main_spiral))
         if plot:
             self.plot_point_array(major_length, major_width, major_height, coil_width, coil_height, store='png')
@@ -175,7 +225,7 @@ class FourierManipulation:
         self.reconstructed_point_array = np.zeros(self.unaltered_point_array.shape)
 
     @staticmethod
-    def nextpower2(n):
+    def next_power2(n):
         """
         returns next highest power of 2 (e.g. for n = 5 returns 8.)
         :param n:
