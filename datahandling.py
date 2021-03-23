@@ -4,6 +4,7 @@ import pandas as pd
 import json
 import sys
 import pathlib
+import open3d as o3d
 
 
 current_directory = pathlib.Path().absolute()
@@ -64,6 +65,13 @@ def fetch_coil_points(filename='docs/coil_array_points.json'):
     if echo:
         print('points fetched successfully from %s/%s' % (current_directory, filename))
     return np.array([pd.array(df['x']), pd.array(df['y']), pd.array(df['z'])])
+
+
+def write_mesh_stl(mesh, filename='docs/winding_coil.stl'):
+    print('writing %s to %s/%s' % (mesh, str(current_directory), filename))
+    o3d.io.write_triangle_mesh(filename, mesh)
+    print(str(sys.getsizeof(filename)) + ' bytes successfully written to %s/%s'
+          % (str(current_directory), filename))
 
 
 def start_up():

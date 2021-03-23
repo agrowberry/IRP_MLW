@@ -14,11 +14,12 @@ class GeometryManipulation:
         self.n = num
         self.fig = go.Figure()
         self.geom_dict = {}
-        self.point_array = np.zeros((3, 1000))
-        self.local_spiral = np.zeros((3, 1000))
-        self.main_spiral = np.zeros((3, 1000))
-        self.grad_array = np.zeros((3, 1000))
-        self.coil_spiral = np.zeros((3, 1000))
+        self.point_array = np.zeros((3, self.n))
+        self.local_spiral = np.zeros((3, self.n))
+        self.main_spiral = np.zeros((3, self.n))
+        self.grad_array = np.zeros((3, self.n))
+        self.coil_spiral = np.zeros((3, self.n))
+        self.normal_array = np.zeros((3, self.n))
 
     def make_helix(self, width, height, length, num_turns, radius, output=False):
         """
@@ -144,7 +145,7 @@ class GeometryManipulation:
         else:
             self.point_array = np.transpose(np.array(mapped_list))
 
-    def make_coil(self, n=None, geom_dict=datahandling.start_up(), plot=False, store=True):
+    def make_coil(self, n=None, geom_dict=None, plot=False, store=True):
         """
         main script calling functions to make a 3D coil of designated size.
         :param store: conditional to store returned array in .json file.
@@ -157,6 +158,8 @@ class GeometryManipulation:
         :type n: int
         :return: array of points describing square coil around rectangular core.
         """
+        if geom_dict is None:
+            geom_dict = datahandling.start_up()
         if n is None:
             n = self.n
         num_turns = int(geom_dict['num_of_turns'])
@@ -177,7 +180,7 @@ class GeometryManipulation:
         self.coil_spiral = self.make_helix(coil_width,
                                            coil_height,
                                            0,
-                                           int(round(n / 50)),
+                                           int(round(n / 500)),
                                            coil_radius,
                                            output=True)
         self.map_points(np.transpose(self.coil_spiral), self.grad_array, np.transpose(self.main_spiral))
@@ -185,6 +188,31 @@ class GeometryManipulation:
             self.plot_point_array(major_length, major_width, major_height, coil_width, coil_height, store='png')
         if store:
             datahandling.store_coil_points(self.point_array)
+
+    def generate_normals_from_source(self, point_array=None, path_array=None, normalise=True, output=True):
+        """self.n
+        creates an array of normal vectors (optionally normalised)
+        :param point_array:
+        :param path_array:
+        :param normalise:
+        :param output:
+        :return:
+        """
+        if point_array is None:
+            point_array = np.transpose(self.point_array)
+        if path_array is None:
+            path_array = np.transpose(self.main_spiral)
+        self.normal_array = point_array - path_array
+        if normalise:
+            def normalise(vector):
+                magnitude = np.linalg.norm(vector)
+                if magnitude == 0:
+                    return vector
+                else:
+                    return vector / magnitude
+            self.normal_array = np.apply_along_axis(normalise, 0, self.normal_array)
+        if output:
+            return self.normal_array
 
     def plot_point_array(self, m_l, m_w, m_h, c_w, c_h, store=None):
         """
