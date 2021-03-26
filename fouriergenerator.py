@@ -43,19 +43,24 @@ class GeometryManipulation:
             returned_array = np.full(n_width, coil_height / 2)
             returned_array = np.append(returned_array,
                                        corner_array[len(corner_array) // 4:len(corner_array) // 2] + coil_height / 2 - coil_radius)
-            returned_array = np.append(returned_array, np.linspace(coil_height / 2 - coil_radius, -coil_height / 2 + coil_radius, n_height))
+            returned_array = np.append(returned_array,
+                                       np.linspace(coil_height / 2 - coil_radius, -coil_height / 2 + coil_radius, n_height))
             returned_array = np.append(returned_array,
                                        corner_array[2 * len(corner_array) // 4:3 * len(corner_array) // 4] - coil_height / 2 + coil_radius)
-            returned_array = np.append(returned_array, np.full(n_width, -coil_height / 2))
+            returned_array = np.append(returned_array,
+                                       np.full(n_width, -coil_height / 2))
             returned_array = np.append(returned_array,
                                        corner_array[3 * len(corner_array) // 4:] - coil_height / 2 + coil_radius)
-            returned_array = np.append(returned_array, np.linspace(-coil_height / 2 + coil_radius, coil_height / 2 - coil_radius, n_height))
+            returned_array = np.append(returned_array,
+                                       np.linspace(-coil_height / 2 + coil_radius, coil_height / 2 - coil_radius, n_height))
             returned_array = np.append(returned_array,
                                        corner_array[:len(corner_array) // 4] + coil_height / 2 - coil_radius)
-            if len(returned_array) != num_per_turn:
+            if len(returned_array) < num_per_turn:
                 returned_array = np.append(returned_array,
                                            np.full(num_per_turn - len(returned_array),
                                                    returned_array[-1]))
+            if len(returned_array) > num_per_turn:
+                returned_array = returned_array[:num_per_turn]
 
             return returned_array
 
@@ -149,9 +154,9 @@ class GeometryManipulation:
         """
         main script calling functions to make a 3D coil of designated size.
         :param store: conditional to store returned array in .json file.
-        :type store: boolean
+        :type store: bool
         :param plot: conditional to plot returned array.
-        :type plot: boolean
+        :type plot: bool
         :param: geom_dict, dictionary in std_input_dict format with geometry params.
         :type geom_dict: dict
         :param n: no. of points in returned array.
@@ -165,7 +170,7 @@ class GeometryManipulation:
         num_turns = int(geom_dict['num_of_turns'])
         coil_height = (geom_dict['core_length'] - (num_turns - 1) * geom_dict['spacing']) / num_turns
         coil_width = geom_dict['outer_spacing'] - 2 * geom_dict['spacing']
-        coil_radius = geom_dict['coil_radius_percentage']*((coil_width + coil_height)/2)
+        coil_radius = geom_dict['coil_radius_percentage']*(min(coil_width, coil_height))
         major_width = geom_dict['core_major_axis'] + geom_dict['spacing'] + coil_width / 2
         major_height = geom_dict['core_minor_axis'] + geom_dict['spacing'] + coil_height / 2
         major_length = geom_dict['core_length']
@@ -180,7 +185,7 @@ class GeometryManipulation:
         self.coil_spiral = self.make_helix(coil_width,
                                            coil_height,
                                            0,
-                                           int(round(n / 500)),
+                                           int(round(n / 250)),
                                            coil_radius,
                                            output=True)
         self.map_points(np.transpose(self.coil_spiral), self.grad_array, np.transpose(self.main_spiral))

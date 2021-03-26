@@ -12,12 +12,12 @@ current_directory = pathlib.Path().absolute()
 # echo is conditional for whether or not to print outputs to console
 echo = True
 # standard set of dimensions
-std_inputs_dict = {'core_length': 5.0,
+std_inputs_dict = {'core_length': 10.0,
                    'core_minor_axis': 10.0,
                    'core_major_axis': 20.0,
                    'core_radius': 2.0,
                    'coil_radius_percentage': 0.1,
-                   'num_of_turns': 4.0,
+                   'num_of_turns': 4,
                    'outer_spacing': 5.0,
                    'spacing': 0.5
                    }
