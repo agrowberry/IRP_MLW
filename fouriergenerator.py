@@ -35,6 +35,7 @@ class GeometryManipulation:
         :param output:
         :return:
         """
+        # declarations and piecewise function describe coil, arbitrary function could be used.
         num_per_turn = int(round(self.n / num_turns))
         perimeter = (
             2 * (height - 2 * radius) + 2 * (width - 2 * radius) + 2 * np.pi * radius
@@ -43,50 +44,51 @@ class GeometryManipulation:
         n_h = int(round((height - 2 * radius) * (num_per_turn / perimeter)))
         n_r = int(round((2 * np.pi * radius) * (num_per_turn / perimeter)))
 
-        def piecewise(coil_height, coil_radius, n_height, n_width):
+        def piecewise(axis_length, coil_radius, n_height, n_width, transpose=False):
+            """
+            static method to produce single dimensional component of a rounded rectangle.
+            :param axis_length:
+            :param coil_radius:
+            :param n_height:
+            :param n_width:
+            :return:
+            """
             corner_array = coil_radius * np.sin(np.linspace(0, 2 * np.pi, n_r))
-            returned_array = np.full(n_width, coil_height / 2)
-            returned_array = np.append(
-                returned_array,
-                corner_array[len(corner_array) // 4 : len(corner_array) // 2]
-                + coil_height / 2
-                - coil_radius,
-            )
-            returned_array = np.append(
-                returned_array,
-                np.linspace(
-                    coil_height / 2 - coil_radius,
-                    -coil_height / 2 + coil_radius,
-                    n_height,
-                ),
-            )
-            returned_array = np.append(
-                returned_array,
-                corner_array[2 * len(corner_array) // 4 : 3 * len(corner_array) // 4]
-                - coil_height / 2
-                + coil_radius,
-            )
-            returned_array = np.append(
-                returned_array, np.full(n_width, -coil_height / 2)
-            )
-            returned_array = np.append(
-                returned_array,
-                corner_array[3 * len(corner_array) // 4 :]
-                - coil_height / 2
-                + coil_radius,
-            )
-            returned_array = np.append(
-                returned_array,
-                np.linspace(
-                    -coil_height / 2 + coil_radius,
-                    coil_height / 2 - coil_radius,
-                    n_height,
-                ),
-            )
-            returned_array = np.append(
-                returned_array,
-                corner_array[: len(corner_array) // 4] + coil_height / 2 - coil_radius,
-            )
+            sections = ['', '', '', '', '', '', '', '']
+            # RH Straight
+            sections[0] = np.full(n_width, axis_length / 2)
+            # Top RH Corner
+            sections[1] = corner_array[round(len(corner_array) / 4):round(len(corner_array) / 2)] + axis_length / 2 - coil_radius
+            # Top Straight
+            sections[2] = np.linspace(
+                (axis_length / 2 - coil_radius) - (axis_length - 2*coil_radius)/n_height,
+                (-axis_length / 2 + coil_radius) + (axis_length - 2*coil_radius)/n_height,
+                n_height
+                )
+            # Top LH Corner
+            sections[3] = corner_array[round(len(corner_array) / 2) : round((3 * len(corner_array)) / 4)] - axis_length / 2 + coil_radius
+            # LH Straight
+            sections[4] = np.full(n_width, -axis_length / 2)
+            # Bottom LH Corner
+            sections[5] = corner_array[round((3 * len(corner_array)) / 4) :] - axis_length / 2 + coil_radius
+            # Bottom Straight
+            sections[6] = np.linspace(
+                (-axis_length / 2 + coil_radius) + (axis_length - 2*coil_radius)/n_height,
+                (axis_length / 2 - coil_radius) - (axis_length - 2*coil_radius)/n_height,
+                n_height
+                )
+            # Bottom RH Corner
+            sections[7] = corner_array[: round(len(corner_array) / 4)] + axis_length / 2 - coil_radius
+
+            # shifts order of sections to provide alternate axis.
+            if transpose:
+                shifted_sections = sections[6:]
+                shifted_sections += sections[:6]
+                returned_array = np.concatenate(tuple(shifted_sections))
+                print('shifted...')
+            else:
+                returned_array = np.concatenate(tuple(sections))
+
             if len(returned_array) < num_per_turn:
                 returned_array = np.append(
                     returned_array,
@@ -98,8 +100,7 @@ class GeometryManipulation:
             return returned_array
 
         x = piecewise(height, radius, n_h, n_w)
-        y = piecewise(width, radius, n_w, n_h)
-        y = np.append(y[n_h + n_r // 4 :], y[: n_h + n_r // 4])
+        y = piecewise(width, radius, n_w, n_h, transpose=True)
 
         vector_list = [list(np.copy(x)), list(np.copy(y)), ""]
         for i in range(num_turns - 1):
@@ -130,22 +131,6 @@ class GeometryManipulation:
         )
         grad_df = df.diff()
         grad_df.iloc[0] = grad_df.iloc[1]
-        datahandling.workingmessage.count = 0
-        for index, row in grad_df.iterrows():
-            if np.abs(row["x"]) < 0.0001 and np.abs(row["y"]) < 0.0001:
-                datahandling.workingmessage("removing zero points")
-                grad_df.at[index, "x"] = np.mean(
-                    np.array(
-                        [
-                            grad_df.iloc[int(index + 1), 0],
-                            grad_df.iloc[int(index - 1), 0],
-                        ]
-                    )
-                )
-                grad_df.at[index, "y"] = np.mean(
-                    np.array([grad_df.iloc[index + 1, 1], grad_df.iloc[index - 1, 1]])
-                )
-        print("gradient array built", end="\n")
         grad_array = grad_df.to_numpy()
         if normalise:
             grad_array = (
@@ -389,19 +374,20 @@ class GeometryManipulation:
         
         def cross(vector, vector_array):
             v_array = np.transpose(vector_array)
-            index = np.where(v_array==vector)[0]
-            if index + 1 >= vector_array.shape[1]:
+            index = cross.count
+            if index + 1 < vector_array.shape[1]:
                 lat_vector = v_array[index + 1] - vector
             else:
                 lat_vector = vector - v_array[index - 1]
-            if index + self.ppt >= vector_array.shape[1]:
+            if index + self.ppt < vector_array.shape[1]:
                 long_vector = v_array[index + self.ppt] - vector
             else:
                 long_vector = vector - v_array[index - self.ppt]
+            cross.count += 1
             return np.cross(lat_vector, long_vector)
 
+        cross.count = 0
         normal_array = np.apply_along_axis(cross, 0, point_array, point_array)
-
 
         if normalise:
 
@@ -414,6 +400,7 @@ class GeometryManipulation:
 
             normal_array = np.apply_along_axis(normalise, 0, normal_array)
 
+        normal_array = np.transpose(normal_array)
         self.normal_array = normal_array
         if output:
             return self.normal_array
@@ -430,21 +417,31 @@ class GeometryManipulation:
         :param c_h:coil_height
         :return:
         """
+        # self.fig.add_trace(
+        #     go.Scatter3d(
+        #         x=self.point_array[0],
+        #         y=self.point_array[1],
+        #         z=self.point_array[2],
+        #         mode="lines",
+        #         name="Coil Surface",
+        #     )
+        # )
+        # self.fig.add_trace(
+        #     go.Scatter3d(
+        #         x=self.main_spiral[0],
+        #         y=self.main_spiral[1],
+        #         z=self.main_spiral[2],
+        #         name="Coil Path",
+        #     )
+        # )
+
         self.fig.add_trace(
             go.Scatter3d(
-                x=self.point_array[0],
-                y=self.point_array[1],
-                z=self.point_array[2],
-                mode="lines",
-                name="Coil Surface",
-            )
-        )
-        self.fig.add_trace(
-            go.Scatter3d(
-                x=self.main_spiral[0],
-                y=self.main_spiral[1],
-                z=self.main_spiral[2],
-                name="Coil Path",
+                x=self.coil_spiral[0],
+                y=self.coil_spiral[1],
+                z=self.coil_spiral[2],
+                mode='markers',
+                name="Coil Profile",
             )
         )
 
