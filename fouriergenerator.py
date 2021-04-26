@@ -23,8 +23,110 @@ class GeometryManipulation:
         self.normal_array = np.zeros((3, self.n))
         self.no_of_profile_turns = None
         self.ppt = None
+        self.surface_normals = None
+        self.loop_size_dict = None
 
-    def make_helix(self, width, height, length, num_turns, radius, output=False):
+    @staticmethod
+    def piecewise(
+        axis_length, coil_radius, n_height, n_width, n_r, num_per_turn, transpose=False
+    ):
+        """
+        static method to produce single dimensional component of a rounded rectangle.
+        :param axis_length:
+        :param coil_radius:
+        :param n_height:
+        :param n_width:
+        :param n_r:
+        :return:
+        """
+        corner_array = coil_radius * np.sin(np.linspace(0, 2 * np.pi, n_r))
+        sections = ["", "", "", "", "", "", "", ""]
+        # RH Straight
+        sections[0] = np.full(n_width, axis_length / 2)
+        # Top RH Corner
+        sections[1] = (
+            corner_array[round(len(corner_array) / 4) : round(len(corner_array) / 2)]
+            + axis_length / 2
+            - coil_radius
+        )
+        # Top Straight
+        sections[2] = np.linspace(
+            (axis_length / 2 - coil_radius)
+            - (axis_length - 2 * coil_radius) / n_height,
+            (-axis_length / 2 + coil_radius)
+            + (axis_length - 2 * coil_radius) / n_height,
+            n_height,
+        )
+        # Top LH Corner
+        sections[3] = (
+            corner_array[
+                round(len(corner_array) / 2) : round((3 * len(corner_array)) / 4)
+            ]
+            - axis_length / 2
+            + coil_radius
+        )
+        # LH Straight
+        sections[4] = np.full(n_width, -axis_length / 2)
+        # Bottom LH Corner
+        sections[5] = (
+            corner_array[round((3 * len(corner_array)) / 4) :]
+            - axis_length / 2
+            + coil_radius
+        )
+        # Bottom Straight
+        sections[6] = np.linspace(
+            (-axis_length / 2 + coil_radius)
+            + (axis_length - 2 * coil_radius) / n_height,
+            (axis_length / 2 - coil_radius)
+            - (axis_length - 2 * coil_radius) / n_height,
+            n_height,
+        )
+        # Bottom RH Corner
+        sections[7] = (
+            corner_array[: round(len(corner_array) / 4)] + axis_length / 2 - coil_radius
+        )
+
+        # shifts order of sections to provide alternate axis.
+        if transpose:
+            shifted_sections = sections[6:]
+            shifted_sections += sections[:6]
+            # returned_array = np.concatenate(tuple(shifted_sections))
+            finished_list = shifted_sections
+        else:
+            # returned_array = np.concatenate(tuple(sections))
+            finished_list = sections
+        # section 0 needs to be split to make midpoint of RH Straight the start/end point
+        # take first half of section 0 and append to back of
+        split_section = finished_list[0]
+        if len(split_section) % 2 == 0:
+            finished_list[0] = split_section[len(split_section) // 2 :]
+            finished_list.append(split_section[: len(split_section) // 2])
+        else:
+            finished_list[0] = split_section[int((len(split_section) - 1) / 2 + 1) :]
+            finished_list.append(split_section[: int((len(split_section) - 1) / 2 + 1)])
+
+        returned_array = np.concatenate(tuple(finished_list))
+
+        if len(returned_array) < num_per_turn:
+            returned_array = np.append(
+                returned_array,
+                np.full(num_per_turn - len(returned_array), returned_array[-1]),
+            )
+        if len(returned_array) > num_per_turn:
+            returned_array = returned_array[:num_per_turn]
+
+        return returned_array
+
+    def make_helix(
+        self,
+        width,
+        height,
+        length,
+        num_turns,
+        radius,
+        output=False,
+        output_geometries=False,
+    ):
         """
         produces square-helical 3d point array of n points.
         :param width:
@@ -44,63 +146,10 @@ class GeometryManipulation:
         n_h = int(round((height - 2 * radius) * (num_per_turn / perimeter)))
         n_r = int(round((2 * np.pi * radius) * (num_per_turn / perimeter)))
 
-        def piecewise(axis_length, coil_radius, n_height, n_width, transpose=False):
-            """
-            static method to produce single dimensional component of a rounded rectangle.
-            :param axis_length:
-            :param coil_radius:
-            :param n_height:
-            :param n_width:
-            :return:
-            """
-            corner_array = coil_radius * np.sin(np.linspace(0, 2 * np.pi, n_r))
-            sections = ['', '', '', '', '', '', '', '']
-            # RH Straight
-            sections[0] = np.full(n_width, axis_length / 2)
-            # Top RH Corner
-            sections[1] = corner_array[round(len(corner_array) / 4):round(len(corner_array) / 2)] + axis_length / 2 - coil_radius
-            # Top Straight
-            sections[2] = np.linspace(
-                (axis_length / 2 - coil_radius) - (axis_length - 2*coil_radius)/n_height,
-                (-axis_length / 2 + coil_radius) + (axis_length - 2*coil_radius)/n_height,
-                n_height
-                )
-            # Top LH Corner
-            sections[3] = corner_array[round(len(corner_array) / 2) : round((3 * len(corner_array)) / 4)] - axis_length / 2 + coil_radius
-            # LH Straight
-            sections[4] = np.full(n_width, -axis_length / 2)
-            # Bottom LH Corner
-            sections[5] = corner_array[round((3 * len(corner_array)) / 4) :] - axis_length / 2 + coil_radius
-            # Bottom Straight
-            sections[6] = np.linspace(
-                (-axis_length / 2 + coil_radius) + (axis_length - 2*coil_radius)/n_height,
-                (axis_length / 2 - coil_radius) - (axis_length - 2*coil_radius)/n_height,
-                n_height
-                )
-            # Bottom RH Corner
-            sections[7] = corner_array[: round(len(corner_array) / 4)] + axis_length / 2 - coil_radius
+        geometry_dict = {"n width": n_w, "n_height": n_h, "n radius": n_r}
 
-            # shifts order of sections to provide alternate axis.
-            if transpose:
-                shifted_sections = sections[6:]
-                shifted_sections += sections[:6]
-                returned_array = np.concatenate(tuple(shifted_sections))
-                print('shifted...')
-            else:
-                returned_array = np.concatenate(tuple(sections))
-
-            if len(returned_array) < num_per_turn:
-                returned_array = np.append(
-                    returned_array,
-                    np.full(num_per_turn - len(returned_array), returned_array[-1]),
-                )
-            if len(returned_array) > num_per_turn:
-                returned_array = returned_array[:num_per_turn]
-
-            return returned_array
-
-        x = piecewise(height, radius, n_h, n_w)
-        y = piecewise(width, radius, n_w, n_h, transpose=True)
+        x = self.piecewise(height, radius, n_h, n_w, n_r, num_per_turn)
+        y = self.piecewise(width, radius, n_w, n_h, n_r, num_per_turn, transpose=True)
 
         vector_list = [list(np.copy(x)), list(np.copy(y)), ""]
         for i in range(num_turns - 1):
@@ -111,10 +160,15 @@ class GeometryManipulation:
         helix_array = np.array(
             [np.array(vector_list[0]), np.array(vector_list[1]), vector_list[2]]
         )
-        if output:
-            return helix_array
-        else:
+        if output and output_geometries:
+            return helix_array, geometry_dict
+        elif not output and not output_geometries:
             self.main_spiral = np.copy(helix_array)
+        elif not output and output_geometries:
+            self.main_spiral = np.copy(helix_array)
+            return geometry_dict
+        if output and not output_geometries:
+            return helix_array
 
     def grad(self, vector_array, normalise=True, output=False):
         """
@@ -209,7 +263,65 @@ class GeometryManipulation:
         else:
             self.point_array = np.transpose(np.array(mapped_list))
 
-    def make_coil(self, n=None, geom_dict=None, plot=False, store=True):
+    def generate_normals_from_source(
+        self, point_array=None, normalise=True, output=True
+    ):
+        """
+        Creates an array of normal vectors (optionally normalised) of the mapped profile surface.
+        Normals generated from taking cross-product of two vectors along surface.
+        :param point_array: mapped profile 3-dimensional array of N-points. forms 'surface'.
+        :type point_array: ndarray
+        :param path_array: path of coil to make normal vector from surface.
+        :type path_array: ndarray
+        :param normalise: kwarg conditional to normalise vector output.
+        :type normalise: bool
+        :param output: kwarg conditional to make method static and return normal array.
+        :type output: bool
+        :return:
+        """
+        if type(self.ppt) is None:
+            print("class has no coil instance, create coil before generating normals.")
+            pass
+
+        if point_array is None:
+            point_array = self.point_array
+
+        def cross(vector, vector_array):
+            v_array = np.transpose(vector_array)
+            index = cross.count
+            if index + 1 < vector_array.shape[1]:
+                lat_vector = v_array[index + 1] - vector
+            else:
+                lat_vector = vector - v_array[index - 1]
+            if index + self.ppt < vector_array.shape[1]:
+                long_vector = v_array[index + self.ppt] - vector
+            else:
+                long_vector = vector - v_array[index - self.ppt]
+            cross.count += 1
+            return np.cross(lat_vector, long_vector)
+
+        cross.count = 0
+        normal_array = np.apply_along_axis(cross, 0, point_array, point_array)
+
+        if normalise:
+
+            def normalise(vector):
+                magnitude = np.linalg.norm(vector)
+                if magnitude == 0:
+                    return vector
+                else:
+                    return vector / magnitude
+
+            normal_array = np.apply_along_axis(normalise, 0, normal_array)
+
+        normal_array = np.transpose(normal_array)
+        self.normal_array = normal_array
+        if output:
+            return self.normal_array
+
+    def make_coil(
+        self, n=None, geom_dict=None, generate_normals=True, plot=False, store=True
+    ):
         """
         main script calling functions to make a 3D coil of designated size.
         :param store: conditional to store returned array in .json file.
@@ -227,26 +339,41 @@ class GeometryManipulation:
         if n is None:
             n = self.n
         #     find coil dimensions inputted dict.
+        # path dimensions
         num_turns = int(geom_dict["num_of_turns"])
-        coil_height = (
-            geom_dict["core_length"] - (num_turns - 1) * geom_dict["spacing"]
-        ) / num_turns
+        major_width = geom_dict["core_major_axis"] + geom_dict["outer_spacing"]
+        major_height = geom_dict["core_minor_axis"] + geom_dict["outer_spacing"]
+        major_length = geom_dict["core_length"]
+        major_radius = geom_dict["core_radius"]
+        # profile dimensions
+        # coil_height = (
+        #     geom_dict["core_length"] - (num_turns - 1) * geom_dict["spacing"]
+        # ) / num_turns
+        coil_height = (geom_dict["core_length"] / num_turns) * np.cos(
+            np.arctan(
+                (geom_dict["core_length"] / num_turns)
+                / (2 * (major_width + major_height - major_radius))
+            )
+        ) - geom_dict["spacing"]
         coil_width = geom_dict["outer_spacing"] - 2 * geom_dict["spacing"]
         coil_radius = geom_dict["coil_radius_percentage"] * (
             min(coil_width, coil_height)
         )
-        major_width = (
-            geom_dict["core_major_axis"] + geom_dict["spacing"] + coil_width / 2
-        )
-        major_height = (
-            geom_dict["core_minor_axis"] + geom_dict["spacing"] + coil_height / 2
-        )
-        major_length = geom_dict["core_length"]
-        major_radius = geom_dict["core_radius"]
+
+        # check for collision condition in profile mapping (R < w/2)
+        if major_radius < coil_width / 2:
+            major_radius = 1.1 * coil_width / 2
+            print("fixed bad path radius. new path radius: %s" % major_length)
+            geom_dict["core_radius"] = major_radius
 
         # makes coil path describing main shape.
-        self.make_helix(
-            major_width, major_height, major_length, num_turns, major_radius
+        self.loop_size_dict = self.make_helix(
+            major_width,
+            major_height,
+            major_length,
+            num_turns,
+            major_radius,
+            output_geometries=True,
         )
         # find gradient array to be mapped to.
         self.grad(np.transpose(self.main_spiral))
@@ -291,7 +418,7 @@ class GeometryManipulation:
                 indivisible = False
             distance += 1
         self.no_of_profile_turns = num_of_profile_turns
-        self.ppt = n//num_of_profile_turns
+        self.ppt = n // num_of_profile_turns
         self.coil_spiral = self.make_helix(
             coil_width, coil_height, 0, num_of_profile_turns, coil_radius, output=True
         )
@@ -301,6 +428,8 @@ class GeometryManipulation:
             self.grad_array,
             np.transpose(self.main_spiral),
         )
+        if generate_normals:
+            self.surface_normals = self.generate_normals_from_source(normalise=True)
         if plot:
             # plots outputted shape using plotly.
             self.plot_point_array(
@@ -312,98 +441,76 @@ class GeometryManipulation:
                 store="png",
             )
         if store:
+            datahandling.store_dict(geom_dict, "docs/dimensions.json")
+            datahandling.store_dict(self.loop_size_dict, "docs/loop_size_dict.json")
             # stores mapped profile to .json file.
             datahandling.store_coil_points(self.point_array)
             # stores path to .json file.
             datahandling.store_coil_points(
                 self.main_spiral, filename="docs/main_coil_points.json"
             )
+            if type(self.surface_normals) is not None:
+                datahandling.store_coil_points(
+                    np.transpose(self.surface_normals),
+                    filename="docs/main_coil_normals.json",
+                )
 
-    def generate_normals_from_source_deprecated(
-        self, point_array=None, path_array=None, normalise=True, output=True
+    def breakdown_coil(
+        self,
+        num_turns=None,
+        ppt=None,
+        profile_array=None,
+        path_array=None,
+        loop_size_dict=None,
     ):
-        """
-        creates an array of normal vectors (optionally normalised) of the mapped profile surface.
-        normals generated as direction from the point-n in the path to point-n in the mapped profile.
-        :param point_array: mapped profile 3-dimensional array of N-points. forms 'surface'.
-        :type point_array: ndarray
-        :param path_array: path of coil to make normal vector from surface.
-        :type path_array: ndarray
-        :param normalise: kwarg conditional to normalise vector output.
-        :type normalise: bool
-        :param output: kwarg conditional to make method static and return normal array.
-        :type output: bool
-        :return normal_array: optionally returned ndarray of normals.
-        """
-        if point_array is None:
-            point_array = np.transpose(self.point_array)
+        # assign attributes to method variables if None.
+        geom_dict = datahandling.read_dict("docs/dimensions.json")
+        if num_turns is None:
+            num_turns = geom_dict["num_of_turns"]
+        if ppt is None:
+            ppt = self.ppt
+        if profile_array is None:
+            profile_array = self.coil_spiral
         if path_array is None:
-            path_array = np.transpose(self.main_spiral)
-        self.normal_array = point_array - path_array
-        if normalise:
+            path_array = self.main_spiral
+        if loop_size_dict is None:
+            loop_size_dict = self.loop_size_dict
+            if loop_size_dict is None:
+                loop_size_dict = datahandling.read_dict("docs/loop_size_dict.json")
 
-            def normalise(vector):
-                magnitude = np.linalg.norm(vector)
-                if magnitude == 0:
-                    return vector
-                else:
-                    return vector / magnitude
-
-            self.normal_array = np.apply_along_axis(normalise, 0, self.normal_array)
-        if output:
-            return self.normal_array
-
-    def generate_normals_from_source(
-        self, point_array=None, normalise=True, output=True
-    ):
-        """
-        Creates an array of normal vectors (optionally normalised) of the mapped profile surface.
-        Normals generated from taking cross-product of two vectors along surface. 
-        :param point_array: mapped profile 3-dimensional array of N-points. forms 'surface'.
-        :type point_array: ndarray
-        :param path_array: path of coil to make normal vector from surface.
-        :type path_array: ndarray
-        :param normalise: kwarg conditional to normalise vector output.
-        :type normalise: bool
-        :param output: kwarg conditional to make method static and return normal array.
-        :type output: bool
-        :return:
-        """
-        if point_array is None:
-            point_array = self.point_array
-        
-        def cross(vector, vector_array):
-            v_array = np.transpose(vector_array)
-            index = cross.count
-            if index + 1 < vector_array.shape[1]:
-                lat_vector = v_array[index + 1] - vector
+        # calc. coil parameters, for splitting up coil into useful profiles.
+        loops = profile_array.shape[1] / ppt
+        cross_sections = 2 * num_turns + 1
+        loops_per_half_turn = loops / (num_turns * 2)
+        print(
+            "loops: %s \ncross-sections: %s \nloops per half turn: %s"
+            % (loops, cross_sections, loops_per_half_turn)
+        )
+        # make dict with coil parameters
+        header_dict = {
+            "coil shape": geom_dict,
+            "ppt": ppt,
+            "cross sections": cross_sections,
+            "lpht": loops_per_half_turn,
+            "loop size": loop_size_dict,
+        }
+        cross_sections_dict = {}
+        profile_array = np.transpose(profile_array)
+        # split coil into individual profile loops for 3D matrix.
+        point_matrix = np.reshape(profile_array, (int(loops), int(ppt), 3))
+        # take the profile loop at every half-turn for the compact dict.
+        for i in range(cross_sections):
+            index = int(i * loops_per_half_turn)
+            if i == cross_sections - 1:
+                cross_sections_dict[i] = point_matrix[-1]
             else:
-                lat_vector = vector - v_array[index - 1]
-            if index + self.ppt < vector_array.shape[1]:
-                long_vector = v_array[index + self.ppt] - vector
-            else:
-                long_vector = vector - v_array[index - self.ppt]
-            cross.count += 1
-            return np.cross(lat_vector, long_vector)
-
-        cross.count = 0
-        normal_array = np.apply_along_axis(cross, 0, point_array, point_array)
-
-        if normalise:
-
-            def normalise(vector):
-                magnitude = np.linalg.norm(vector)
-                if magnitude == 0:
-                    return vector
-                else:
-                    return vector / magnitude
-
-            normal_array = np.apply_along_axis(normalise, 0, normal_array)
-
-        normal_array = np.transpose(normal_array)
-        self.normal_array = normal_array
-        if output:
-            return self.normal_array
+                cross_sections_dict[i] = point_matrix[index]
+        compact_coil_dict = {
+            "header": header_dict,
+            "x-sec": cross_sections_dict,
+            "path": path_array,
+        }
+        return compact_coil_dict
 
     def plot_point_array(self, m_l, m_w, m_h, c_w, c_h, store=None):
         """
@@ -440,7 +547,7 @@ class GeometryManipulation:
                 x=self.coil_spiral[0],
                 y=self.coil_spiral[1],
                 z=self.coil_spiral[2],
-                mode='markers',
+                mode="markers",
                 name="Coil Profile",
             )
         )
@@ -462,6 +569,89 @@ class GeometryManipulation:
             self.fig.write_image("point_array_scatter", format=store)
 
         self.fig.show()
+
+
+class CompactCoil:
+    def __init__(self, compact_coil_dict):
+        info_dict = compact_coil_dict["header"]
+        self.coil_loop_dict = compact_coil_dict["x-sec"]
+        self.path_array = compact_coil_dict["path"]
+        self.coil_path_dict = info_dict["coil shape"]
+        self.ppt = info_dict["ppt"]
+        self.lpht = info_dict["lpht"]
+        self.loop_size = info_dict["loop size"]
+        self.cross_sections = info_dict["cross sections"]
+
+    def reconstruct_coil(self, output=True):
+        # for each turn create a lofted matrix of profile shapes. loft for the turning section of the path.
+        n_h = self.loop_size["n height"]
+        n_w = self.loop_size['n width']
+        n_r = self.loop_size['n radius']
+
+        if n_h % 2 == 0:
+            start_point = n_h // 2
+            end_point = n_h // 2
+        else:
+            start_point = (n_h - 1) // 2 + 1
+            end_point = (n_h - 1) // 2
+
+        # fixes loft start and end points to be a set integer number of turns.
+        if start_point % self.ppt == 0:
+            divisible = True
+        else:
+            divisible = False
+            distance = 1
+        while not divisible:
+            if (start_point + distance) % self.ppt == 0:
+                divisible = True
+                start_point += distance
+            else:
+                distance += 1
+
+        if end_point % self.ppt == 0:
+            divisible = True
+        else:
+            divisible = False
+            distance = 1
+
+        while not divisible:
+            if (end_point + distance) % self.ppt == 0:
+                divisible = True
+                end_point += distance
+            else:
+                distance += 1
+
+        lofting_points = (self.lpht*self.ppt) - (start_point + end_point)
+
+        def _find_grad(start_vector, end_vector, size):
+            shift_vector = (end_vector - start_vector)/(size + 2)
+            return shift_vector
+        find_grad = np.vectorize(_find_grad)
+
+        def _shift()
+
+        # for jth point in ith loop will create linear loft using start profile and gradient to loft.
+        # j: 0 -> n         | i: 0 -> k
+        def loft(start, gradient, k):
+            for i in range(k):
+
+
+
+
+        for turn in range(self.cross_sections):
+            # start and end profiles are (ppt x 3) arrays
+            # k = start_point + end_point + lofting_points
+
+            start_profile = self.coil_loop_dict[turn]
+            end_profile = self.coil_loop_dict[turn + 1]
+            path_sections_list = [np.tile(start_profile, (start_point, 1, 1))]
+            gradient_array = find_grad(start_profile, end_profile, lofting_points)
+
+            print('oops')
+
+
+
+
 
 
 class FourierManipulation:

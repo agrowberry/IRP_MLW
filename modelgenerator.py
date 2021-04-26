@@ -50,6 +50,57 @@ class PointCloud:
             [pcd], mesh_show_wireframe=True, point_show_normal=show_normals
         )
 
+    @staticmethod
+    def generate_normals_from_source(
+            ppt, point_array, normalise=True, output=True
+    ):
+        """
+        Creates an array of normal vectors (optionally normalised) of the mapped profile surface.
+        Normals generated from taking cross-product of two vectors along surface.
+        Method is mirrored from fouriergenerator.py GeometryManipulation class.
+        :param point_array: mapped profile 3-dimensional array of N-points. forms 'surface'.
+        :type point_array: ndarray
+        :param path_array: path of coil to make normal vector from surface.
+        :type path_array: ndarray
+        :param normalise: kwarg conditional to normalise vector output.
+        :type normalise: bool
+        :param output: kwarg conditional to make method static and return normal array.
+        :type output: bool
+        :return:
+        """
+
+        def cross(vector, vector_array):
+            v_array = np.transpose(vector_array)
+            index = cross.count
+            if index + 1 < vector_array.shape[1]:
+                lat_vector = v_array[index + 1] - vector
+            else:
+                lat_vector = vector - v_array[index - 1]
+            if index + ppt < vector_array.shape[1]:
+                long_vector = v_array[index + ppt] - vector
+            else:
+                long_vector = vector - v_array[index - ppt]
+            cross.count += 1
+            return np.cross(lat_vector, long_vector)
+
+        cross.count = 0
+        normal_array = np.apply_along_axis(cross, 0, point_array, point_array)
+
+        if normalise:
+
+            def normalise(vector):
+                magnitude = np.linalg.norm(vector)
+                if magnitude == 0:
+                    return vector
+                else:
+                    return vector / magnitude
+
+            normal_array = np.apply_along_axis(normalise, 0, normal_array)
+
+        normal_array = np.transpose(normal_array)
+        if output:
+            return normal_array
+
 
 class Mesh:
     def __init__(self, pcd=None, mesh=None):
