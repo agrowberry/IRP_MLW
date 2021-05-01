@@ -10,7 +10,7 @@ class PointCloud:
     def __init__(self, points_array):
         self.pcd_array = points_array
         self.pcd = o3d.geometry.PointCloud()
-        self.pcd.points = o3d.utility.Vector3dVector(np.transpose(self.pcd_array))
+        self.pcd.points = o3d.utility.Vector3dVector(self.pcd_array)
         self.pcd.estimate_normals(
             search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30)
         )
@@ -263,7 +263,7 @@ class Mesh:
     ):
         if mesh is None:
             mesh = self.mesh
-        print("closing mesh, merging vertices closer than %s" % (eps))
+        print("closing mesh, merging vertices closer than %s" % eps)
         closed = mesh.is_watertight()
         if type(store_original) is str:
             o3d.io.write_stl_file(store_original, mesh)
