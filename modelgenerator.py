@@ -7,13 +7,16 @@ import matplotlib.pyplot as plt
 
 
 class PointCloud:
-    def __init__(self, points_array):
+    def __init__(self, points_array, normal_array=None):
         self.pcd_array = points_array
         self.pcd = o3d.geometry.PointCloud()
-        self.pcd.points = o3d.utility.Vector3dVector(np.transpose(self.pcd_array))
-        self.pcd.estimate_normals(
-            search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30)
-        )
+        self.pcd.points = o3d.utility.Vector3dVector(self.pcd_array)
+        if normal_array is None:
+            self.pcd.estimate_normals(
+                search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30)
+            )
+        else:
+            self.pcd.normals = o3d.utility.Vector3dVector(normal_array)
 
     def down_sample(self, vox_size, full_pcd=None, output=False):
         """
@@ -174,7 +177,7 @@ class Mesh:
         avg_dist = np.mean(distances)
         radius = radius_scalar * avg_dist
         mesh = o3d.geometry.TriangleMesh.create_from_point_cloud_ball_pivoting(
-            pcd, radii=o3d.utility.DoubleVector([radius, radius * 5])
+            pcd, radii=o3d.utility.DoubleVector([0.01*radius, 0.1*radius, 0.5*radius, radius, 1.5*radius])
         )
         if output:
             return mesh
@@ -187,7 +190,7 @@ class Mesh:
         self, pcd=None, depth=8, output=False, compute_normals=True, run_checks=False
     ):
         """
-        produces TriangleMesh object using poisson smoothing algorithm from passed PointCloud object
+        produces TriangleMesh object using poisson meshing algorithm from passed PointCloud object
         :param pcd: PointCloud array to be meshed if none class pcd object is used.
         :type pcd: PointCloud
         :param depth: number of passes the poisson algorithm performs on object.
@@ -213,6 +216,7 @@ class Mesh:
         )
         density_colors = density_colors[:, :3]
         mesh.vertex_colors = o3d.utility.Vector3dVector(density_colors)
+        mesh.remove_duplicated_vertices()
         if compute_normals:
             mesh.compute_triangle_normals(normalized=True)
         if output:
@@ -221,6 +225,50 @@ class Mesh:
             self.mesh = mesh
         if run_checks:
             self.run_checks()
+
+    def piecewise_poisson_mesh(
+        self, points, normals, chunks, depth = 8, output = False, compute_normals = True, run_checks = False
+    ):
+        """
+        produces TriangleMesh object using poisson meshing algorithm from passed PointCloud object
+        :param pcd: PointCloud array to be meshed if none class pcd object is used.
+        :type pcd: PointCloud
+        :param depth: number of passes the poisson algorithm performs on object.
+        :type depth: int
+        :param output: conditional for making method static.
+        :type output: bool
+        :param compute_normals: conditional for computing face normals for the mesh
+        :type compute_normals: bool
+        :param run_checks: conditional for running mesh geometry checks
+        :type output: bool
+        :return mesh: optional returned TriangleMesh object
+        """
+        chunk_size = int(points.shape[0] / chunks)
+        meshed_chunks = o3d.geometry.TriangleMesh()
+        for chunk in range(chunks):
+            start = chunk_size*(chunk)
+            stop = chunk_size*(chunk + 1)
+            chunk_points = points[start: stop]
+            chunk_normals = normals[start: stop]
+            chunk_pcd = o3d.geometry.PointCloud()
+            chunk_pcd.points = o3d.utility.Vector3dVector(chunk_points)
+            chunk_pcd.normals = o3d.utility.Vector3dVector(chunk_normals)
+            print("running Poisson surface reconstruction on chunk %s" % chunk)
+            mesh, densities = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(
+                chunk_pcd, depth=depth
+            )
+            meshed_chunks += mesh
+        mesh = meshed_chunks
+        mesh.remove_duplicated_vertices()
+        mesh.paint_uniform_color(np.array([214, 109, 109]))
+        if compute_normals:
+            mesh.compute_triangle_normals(normalized=True)
+        if output:
+            return mesh
+        else:
+            self.mesh = mesh
+        self.mesh = meshed_chunks
+
 
     def smooth_laplacian(
         self, mesh=None, iterations=1, compute_normals=True, output=False
@@ -263,7 +311,7 @@ class Mesh:
     ):
         if mesh is None:
             mesh = self.mesh
-        print("closing mesh, merging vertices closer than %s" % (eps))
+        print("closing mesh, merging vertices closer than %s" % eps)
         closed = mesh.is_watertight()
         if type(store_original) is str:
             o3d.io.write_stl_file(store_original, mesh)
